@@ -1,0 +1,82 @@
+# Assumptions:
+# 1. sql is correct
+# 2. only table name has alias
+# 3. only one intersect/union/except
+
+# val: value(float/string)/sql(dict)/col_unit(tuple)
+# col_unit: (agg_id, col_id, isDistinct(bool))
+# val_unit: (unit_op, col_unit1, col_unit2)
+# table_unit: (table_type, tab_id/sql)
+# cond_unit: (not_op(bool), cmp_op, val_unit, val1, val2)
+# condition: [cond_unit1, 'and'/'or', cond_unit2, ...]
+# sql {
+#   'select': (isDistinct(bool), [(agg_id, val_unit), (agg_id, val_unit), ...])
+#   'from': {'table_units': [table_unit1, table_unit2, ...], 'conds': condition}
+#   'where': condition
+#   'groupBy': [col_unit1, col_unit2, ...]
+#   'orderBy': ('asc'/'desc', [val_unit1, val_unit2, ...])
+#   'having': condition
+#   'limit': None/integer
+#   'intersect': None/sql
+#   'except': None/sql
+#   'union': None/sql
+# }
+
+# CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
+# JOIN_KEYWORDS = ('join', 'on', 'as')
+# CMP_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists') 
+# UNIT_OPS = ('none', '-', '+', "*", '/')
+# AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
+# TABLE_TYPE = ('sql', 'table_unit')
+# COND_OPS = ('and', 'or')
+# SQL_OPS = ('intersect', 'union', 'except')
+# ORDER_OPS = ('desc', 'asc')
+
+##########################################################################
+
+# Limitations: does not handle the JOIN of two same tables in FROM clause
+
+tab_id, col_id, val_id
+
+sql = Intersect(sql left_sql, sql right_sql)
+        | Union(sql left_sql, sql right_sql)
+        | Except(sql left_sql, sql right_sql)
+        | SQL(from from, select select, condition where, groupby groupby, orderby orderby)
+
+# enumerable productions:
+# [field:min,max] means enumerating the current grammar rules with different number of fields ranging from min to max, e.g., col_unit col_unit
+# also append the ``number`` after the rule name, e.g., SelectColumnThree(col_unit col_unit, col_unit col_unit, col_unit col_unit)
+
+select = SelectColumn[col_unit col_unit:1,6](distinct distinct, col_unit col_unit)
+
+from = FromTable[tab_id tab_id:1,5](tab_id tab_id, condition from)
+        | FromSQL(sql from_sql)
+        | FromSQLTwo(sql from_sql, sql from_sql)
+
+groupby = NoGroupBy
+        | GroupByColumn[col_id col_id:1,3](col_id col_id, condition having)
+
+orderby = NoOrderBy
+        | OrderByColumn[col_unit col_unit:1,3](col_unit col_unit, order order)
+        | OrderByLimitColumn[col_unit col_unit:1,3](col_unit col_unit, order order, val_id limit)
+
+order = Asc | Desc
+
+condition = NoCondition 
+        | AndCondition[condition condition:2,4](condition condition)
+        | OrCondition[condition condition:2,4](condition condition)
+        | BetweenCondition(col_unit col_unit, value left_value, value right_value)
+        | CmpCondition(col_unit col_unit, cmp_op cmp_op, value value)
+
+cmp_op = Equal | NotEqual | GreaterThan | GreaterEqual | LessThan | LessEqual | Like | NotLike | In | NotIn | Is
+
+value = SQLValue(sql value_sql) | LiteralValue(val_id val_id) | ColumnValue(col_id col_id)
+
+col_unit = UnaryColumnUnit(agg_op agg_op, distinct distinct, col_id col_id)
+        | BinaryColumnUnit(agg_op agg_op, unit_op unit_op, col_id left_col_id, col_id right_col_id)
+
+distinct = True | False
+
+agg_op = None | Max | Min | Count | Sum | Avg
+
+unit_op = Minus | Plus | Times | Divide

@@ -1,0 +1,16 @@
+.vscode
+*.ipynb
+*.log
+__pycache__
+*/__pycache__
+*/*/__pycache__
+*/*/*/__pycache__
+*/*/*/*/__pycache__
+pretrained_models
+saved_models
+database
+data
+log
+exp
+history
+*.sbatch
