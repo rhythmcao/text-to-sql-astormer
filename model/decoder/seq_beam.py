@@ -20,7 +20,7 @@ class SEQBeam(object):
             device (torch.device)
     """
     def __init__(self, tranx, database, beam_size, n_best=1, device=None, top_k=0):
-
+        super(SEQBeam, self).__init__()
         self.tokenizer = tranx.tokenizer
         self.shifts = (
             self.tokenizer.vocab_size, 
@@ -47,7 +47,7 @@ class SEQBeam(object):
         self.next_ys = [torch.zeros(self.beam_size, dtype=torch.long, device=self.device).fill_(self._pad)]
         self.next_ys[0][0] = self._bos
 
-        # Time and k pair for finished.
+        # Store finished hypothesis
         self.completed_hyps = []
         self.top_k = int(top_k) if top_k >= 2 and top_k <= self.beam_size else self.beam_size
 
@@ -80,7 +80,7 @@ class SEQBeam(object):
         flat_beam_scores = beam_scores.contiguous().view(-1)
         _, best_scores_id = flat_beam_scores.topk(self.beam_size, 0, True, True)
 
-        # best_scores_id is flattened beam x word array, so calculate which
+        # best_scores_id is flattened beam_size x cur_top_k array, so calculate which
         # word and beam each score came from
         prev_k = best_scores_id // cur_top_k
         self.prev_ks.append(prev_k)
@@ -93,7 +93,7 @@ class SEQBeam(object):
                 self.completed_hyps.append((self.scores[i], len(self.next_ys) - 1, i))
 
         # End condition is when top-of-beam is EOS
-        if self.next_ys[-1][0] == self._eos:
+        if self.next_ys[-1][0].item() == self._eos:
             self.eos_top = True
 
         return self.done
@@ -109,7 +109,7 @@ class SEQBeam(object):
             self.completed_hyps.sort(key=lambda a: - a[0]) # / len(a[1]))
             completed_hyps = [Hypothesis(action=self.get_hyp(t, k), score=s) for s, t, k in self.completed_hyps]
         else:
-            completed_hyps = [Hypothesis(action=[self._bos, self._eos], score=-1e8)]
+            completed_hyps = [Hypothesis(action=[self._bos, self._eos], score=-1e10)]
         return completed_hyps
 
 

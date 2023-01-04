@@ -49,12 +49,12 @@ class AstormerLayer(nn.Module):
         self.hidden_size, self.num_heads = hidden_size, num_heads
         self.scale_factor = math.sqrt(self.hidden_size // self.num_heads)
         self.dropout_layer = nn.Dropout(p=dropout)
-        self.self_qkv_affine = nn.Linear(hidden_size, hidden_size * 3)
-        self.self_o_affine = nn.Linear(hidden_size, hidden_size)
+        self.self_qkv_affine = nn.Linear(self.hidden_size, self.hidden_size * 3)
+        self.self_o_affine = nn.Linear(self.hidden_size, self.hidden_size)
         self.self_layer_norm = nn.LayerNorm(self.hidden_size)
-        self.cross_q_affine = nn.Linear(hidden_size, hidden_size)
-        self.cross_kv_affine = nn.Linear(hidden_size, hidden_size * 2)
-        self.cross_o_affine = nn.Linear(hidden_size, hidden_size)
+        self.cross_q_affine = nn.Linear(self.hidden_size, self.hidden_size)
+        self.cross_kv_affine = nn.Linear(self.hidden_size, self.hidden_size * 2)
+        self.cross_o_affine = nn.Linear(self.hidden_size, self.hidden_size)
         self.cross_layer_norm = nn.LayerNorm(self.hidden_size)
         self.feedforward = FFN(self.hidden_size)
 
@@ -99,7 +99,7 @@ class AstormerLayer(nn.Module):
             if enc_mask is not None:
                 e = e.masked_fill_(~ enc_mask.unsqueeze(1).unsqueeze(-1), -1e10)
             a = torch.softmax(e, dim=2)
-            o = torch.einsum('btsh,bshd->bthd', a, V).reshape(-1, q.size(1), self.hidden_size)
+            o = torch.einsum('btsh,bshd->bthd', a, V).reshape(q.size(0), q.size(1), -1)
             return self.cross_layer_norm(q + self.cross_o_affine(o))
 
         o = calculate_self_attention_with_relation(q) if rel_k is not None else calculate_self_attention(q)

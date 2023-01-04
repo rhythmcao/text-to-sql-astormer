@@ -69,7 +69,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order) 
                 if decode_order != 'dfs+l2r' else (ex.action, ex.decoder_relation) for ex in ex_list]))
             max_action_num = max([len(action) for action in action_infos_list])
-            vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.tranx.grammar)
+            vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.grammar)
             table_nums = [len(ex.db['table_names']) for ex in ex_list]
 
             def get_action_id(action_info, eid):
@@ -83,6 +83,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
 
             def get_decoder_relation(relation):
                 tri_mask = torch.tril(torch.ones((relation.size(0), relation.size(0)), dtype=torch.bool))
+                # TODO: after check the assert, remove it
                 assert torch.any(relation.masked_select(tri_mask) == 0).item() == False
                 return F.pad(relation, (0, max_action_num - relation.size(0), 0, max_action_num - relation.size(0)), value=0)
 
@@ -93,11 +94,12 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             batch.decoder_relations = torch.stack([get_decoder_relation(relation) for relation in relations_list]).to(device)
             batch.tgt_mask = lens2mask(torch.tensor([len(action_infos) for action_infos in action_infos_list], dtype=torch.long)).to(device)
             batch.action_infos = action_infos_list # to retrieve parent hidden state timestep, LSTM decoder
-        
         else: # sequence decoder
             seq_actions = [ex.action for ex in ex_list]
             max_action_num = max([len(actions) for actions in seq_actions])
-            batch.seq_actions = torch.tensor([actions + [Example.tranx.tokenizer.pad_token_id] * (max_action_num - len(actions)) for actions in seq_actions], dtype=torch.long, device=device)
+            pad_idx = Example.tranx.tokenizer.pad_token_id
+            batch.seq_actions = torch.tensor([actions + [pad_idx] * (max_action_num - len(actions)) for actions in seq_actions], dtype=torch.long, device=device)
+            # remember to minus 1 due to the shifted input operation
             batch.tgt_mask = lens2mask(torch.tensor([len(actions) - 1 for actions in seq_actions], dtype=torch.long)).to(device)
     else:
         batch.max_action_num = 120

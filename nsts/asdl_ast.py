@@ -128,23 +128,3 @@ class AbstractSyntaxTree(object):
 
     def field_finished(self, field):
         return self.tracker[field] == self.production.fields[field]
-
-
-    # @property
-    # def children_fields(self):
-    #     return list(self.production.fields.keys())
-
-
-    # @property
-    # def unfinished_fields(self):
-    #     return list(filter(lambda field: self.tracker[field] < self.production.fields[field], self.production.fields))
-
-
-    # @property
-    # def finished(self):
-    #     return all(map(lambda field: all(map(lambda rf: rf.finished, self.fields[field])), self.production.fields))
-
-
-    # @property
-    # def decode_finished(self):
-    #     return all(map(lambda field: self.tracker[field] == self.production.fields[field], self.production.fields))

@@ -11,8 +11,8 @@ class Hypothesis(object):
     """ Given the sequence of actions, construct the target SQL AST step-by-step,
     and maintain necessary infos such as decoder relational matrix and frontier nodes.
     """
-    def __init__(self, tranx: TransitionSystem, order: str = 'dfs+l2r') -> None:
-        self.tranx, self.order = tranx, order
+    def __init__(self, tranx: TransitionSystem, decode_order: str = 'dfs+l2r') -> None:
+        self.tranx, self.decode_order = tranx, decode_order
         self.tree: AbstractSyntaxTree = None # root start with None
         self.actions: List[Action] = [] # list of Action
         self.relations: List[List[int]] = [] # list of triangular relational matrix
@@ -44,13 +44,13 @@ class Hypothesis(object):
 
 
     def get_next_frontier_ids(self) -> List[int]:
-        """ Give the pre-defined traverse order~(self.order), return the idxs of frontier nodes/fields to be expanded for the next timestep
+        """ Give the pre-defined traverse order~(self.decode_order), return the idxs of frontier nodes/fields to be expanded for the next timestep
         """
         if len(self._value_buffer) > 0: # GenerateTokenAction not stopped
             return [self._value_frontier]
 
-        if 'l2r' in self.order: return [0] # only the left one
-        elif self.order == 'random': return list(range(len(self.frontier_info)))
+        if 'l2r' in self.decode_order: return [0] # only the left one
+        elif self.decode_order == 'random': return list(range(len(self.frontier_info)))
         else: # dfs+random / bfs+random
             next_frontier_ids = [0]
             parent_node_address = id(self.frontier_info[0].parent_node)
@@ -65,16 +65,16 @@ class Hypothesis(object):
         frontier_idx~(int): index of the current node to be expanded in the self.frontier_info
         """
         grammar = self.tranx.grammar
+        frontier_field = self.frontier_info[frontier_idx]
+        self.relations.append(self.get_child_relation(frontier_field))
+
         if self.tree is None: # the first action must be ApplyRule
             assert isinstance(action, ApplyRuleAction) and self.t == 0 and frontier_idx == 0, 'Invalid action [%s], only ApplyRule action is valid ' \
                                                         'at the beginning of decoding' % (action)
             production = grammar.id2prod[action.production_id]
             self.tree = AbstractSyntaxTree(production, created_time=self.t, depth=0)
-            self.relations.append(self.get_child_relation(frontier_field))
             self.update_frontier_info(frontier_idx)
         else:
-            frontier_field = self.frontier_info[frontier_idx]
-            self.relations.append(self.get_child_relation(frontier_field))
             if isinstance(frontier_field.type, ASDLCompositeType):
                 assert isinstance(action, ApplyRuleAction)
                 depth = frontier_field.parent_node.depth + 1
@@ -86,9 +86,9 @@ class Hypothesis(object):
                     self._value_buffer.append(action.token)
                     if action.is_stop_signal():
                         frontier_field.add_value(self._value_buffer, realized_time=self.t)
-                        self._value_buffer = []
+                        self._value_buffer, self._value_frontier = [], -1
                         self.update_frontier_info(frontier_idx)
-                    else: self._value_frontier = frontier_field # not update frontier_info in this case
+                    else: self._value_frontier = frontier_idx # not update frontier_info in this case
                 else: # SelectTable or SelectColumn action
                     frontier_field.add_value(int(action.token), realized_time=self.t)
                     self.update_frontier_info(frontier_idx)
@@ -130,7 +130,7 @@ class Hypothesis(object):
         if isinstance(current_node, AbstractSyntaxTree) and len(current_node.fields) > 0:
             unrealized_fields = [current_node[field][0] for field in current_node.fields]
             unrealized_paths = [current_path + ((field, 0),) for field in current_node.fields]
-            if self.order.startswith('bfs'):
+            if self.decode_order.startswith('bfs'):
                 self.frontier_info.extend(unrealized_fields)
                 self.frontier_path.extend(unrealized_paths)
             else:
@@ -149,7 +149,7 @@ class Hypothesis(object):
 
 
     def copy(self):
-        new_hyp = Hypothesis(self.tranx, self.order)
+        new_hyp = Hypothesis(self.tranx, self.decode_order)
         if self.tree:
             new_hyp.tree = self.tree.copy()
             new_hyp.frontier_path = list(self.frontier_path)
@@ -177,4 +177,4 @@ class Hypothesis(object):
 
     @property
     def completed(self):
-        return self.tree and len(self.frontier_info) == 0
+        return self.tree is not None and len(self.frontier_info) == 0

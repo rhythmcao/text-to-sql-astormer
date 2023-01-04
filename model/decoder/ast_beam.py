@@ -13,18 +13,18 @@ class ASTBeam():
         """
         @args:
             database: a dict store the number of tables and columns for the current sample
-            order: how to update the frontier fields for the partially constructed AST
+            decode_order: how to update the frontier fields for the partially constructed AST
         """
         assert beam_size >= 1
         self.tranx, self.grammar = tranx, tranx.grammar
         self.token_num, self.grammar_num = self.tranx.tokenizer.vocab_size, len(self.grammar)
         self.table_num, self.column_num = database['table'], database['column']
-        self.beam_size, self.n_best, self.order = beam_size, n_best, decode_order
+        self.beam_size, self.n_best, self.decode_order = beam_size, n_best, decode_order
         self.device = device
         # record the current hypothesis and current input fields
-        self.hyps: List[Hypothesis] = [Hypothesis(self.tranx, self.order)]
+        self.hyps: List[Hypothesis] = [Hypothesis(self.tranx, self.decode_order)]
         self.frontier_ids: List[int] = [None] # one-to-one corresponding to self.hyps
-        self.live_hyp_ids: List[int] = [0] # record the index of previous hyp ids
+        self.live_hyp_ids: List[int] = [0] # record the index of previous hyp in self.hyps
         self.completed_hyps: List[Hypothesis] = []
 
 
@@ -60,7 +60,7 @@ class ASTBeam():
         return [idx + offset for idx in self.live_hyp_ids]
 
 
-    def advance(self, ar_scores: torch.FloatTensor, ss_scores: torch.FloatTensor, gt_scores: torch.FloatTensor) -> bool:
+    def advance(self, ar_scores: torch.FloatTensor, ss_scores: torch.FloatTensor, gt_scores: torch.FloatTensor):
         """ Scores for apply rule, select schema and generate tokens.
         """
         prev_hyp_ids, action_ids, hyp_scores = [], [], []
@@ -77,13 +77,13 @@ class ASTBeam():
                 prod_scores = torch.index_select(ar_scores[idx], 0, prod_ids)
                 hyp_scores.append(hyp.score + prod_scores)
             elif act_type == SelectTableAction:
-                table_ids = torch.arange(0, self.table_num, device=self.device)
+                table_ids = torch.arange(self.table_num, device=self.device)
                 prev_hyp_ids.append(table_ids.new_full(table_ids.size(), idx))
                 action_ids.append(table_ids)
                 table_scores = ss_scores[idx, :self.table_num]
                 hyp_scores.append(hyp.score + table_scores)
             elif act_type == SelectColumnAction:
-                column_ids = torch.arange(0, self.column_num, device=self.device)
+                column_ids = torch.arange(self.column_num, device=self.device)
                 prev_hyp_ids.append(column_ids.new_full(column_ids.size(), idx))
                 action_ids.append(column_ids)
                 column_scores = ss_scores[idx, self.table_num: self.table_num + self.column_num]
@@ -100,7 +100,6 @@ class ASTBeam():
         topk_hyp_scores, meta_ids = hyp_scores.topk(min(self.beam_size, hyp_scores.size(0)), -1, True, True)
         prev_hyp_ids = torch.index_select(prev_hyp_ids, dim=0, index=meta_ids).tolist()
         action_ids = torch.index_select(action_ids, dim=0, index=meta_ids).tolist()
-        same_hyp_counter = Counter(prev_hyp_ids)
 
         # update the hypothesis and fields list
         new_hyps, new_frontier_ids, live_hyp_ids = [], [], []
@@ -108,12 +107,7 @@ class ASTBeam():
             hyp, fid = self.hyps[hyp_id], self.frontier_ids[hyp_id]
             refield = hyp.frontier_info[fid]
             action = self.tranx.field_to_action(refield)(act_id)
-
-            hyp_num = same_hyp_counter[hyp_id]
-            if hyp_num == 1: new_hyp = hyp.apply_action(action, fid)
-            else:
-                new_hyp = hyp.clone_and_apply_action(action, fid)
-                same_hyp_counter[hyp_id] -= 1
+            new_hyp = hyp.clone_and_apply_action(action, fid)
             new_hyp.score = hyp_score
 
             if new_hyp.completed:
@@ -139,5 +133,5 @@ class ASTBeam():
             size = min([self.n_best, len(self.completed_hyps)])
             completed_hyps = sorted(self.completed_hyps, key=lambda hyp: - hyp.score)[:size] # / hyp.tree.size
         else:
-            completed_hyps = [Hypothesis(self.tranx, self.order)]
+            completed_hyps = [Hypothesis(self.tranx, self.decode_order)]
         return completed_hyps

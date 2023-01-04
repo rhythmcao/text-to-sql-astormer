@@ -23,9 +23,9 @@ class ASTRelation():
     # relative relations are constructed by num-num, num is the distance to the common ancestor, such that
     # 0-0 means self-loop, 0-1 means parent-child relation, 1-1 means siblings and 0-2 means grandparent-grandchild relation
     # to avoid infinite distance, we restrict the maximum distance to 4, which can be interpreted as the ancestor or descendant
-    MAX_ABSOLUTE_DEPTH = 8
-    MAX_RELATIVE_DEPTH = 4
-    MAX_TOKEN_DISTANCE = 3
+    MAX_ABSOLUTE_DEPTH = 20
+    MAX_RELATIVE_DEPTH = 6
+    MAX_TOKEN_DISTANCE = 4
     DECODER_RELATIONS = ['padding-padding'] + [str(i) + '-' + str(j) for i, j in product(range(MAX_RELATIVE_DEPTH), range(MAX_RELATIVE_DEPTH))] + \
         [f'left{i:d}' for i in range(1, MAX_TOKEN_DISTANCE)] # for multi-token SQL values, re-use 0-0 to mean the same token
 
@@ -109,16 +109,3 @@ class ASTRelation():
         t, pad_idx = len(relation_list), self.relation2id['padding-padding']
         relation_list = [rel + [pad_idx] * (t - len(rel)) for rel in relation_list]
         return torch.tensor(relation_list, dtype=torch.long, device=device)
-
-
-    def batched_relation(self, batched_rel_list: List[List[List[int]]], device: torch.device = torch.device('cpu')) -> torch.LongTensor:
-        """ Given the batched relation matrix list~(bs x timestep x timestep), return the corresponding torch.LongTensor matrix.
-        The input relation_list can be not well-shaped, extra padding relations will be filled.
-        """
-        pad_idx = self.relation2id['padding-padding']
-        max_len = max([len(rel_mat) for rel_mat in batched_rel_list])
-        relation_matrix = [F.pad(self.padding_relation(rel_list),
-            pad=(0, max_len - len(rel_list), 0, max_len - len(rel_list)), value=pad_idx)
-            for rel_list in batched_rel_list]
-        relation_matrix = torch.stack(relation_matrix, dim=0).to(device)
-        return relation_matrix

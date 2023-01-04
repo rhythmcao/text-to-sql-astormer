@@ -16,14 +16,14 @@ class ASTDecoder(nn.Module):
         super(ASTDecoder, self).__init__()
         self.args, self.tranx = args, tranx
         self.grammar, self.relation = self.tranx.grammar, self.tranx.ast_relation
-        self.max_depth = self.relation.MAX_ABSOLUTE_DEPTH
+        self.max_depth = self.relation.MAX_ABSOLUTE_DEPTH - 1
 
         embed_size = args.embed_size # the same size as word embeddings, defined in the encoder
-        # embedding matrices for ASDL production rules and fields, plus 1 due to the root node
-        self.production_embed = nn.Embedding(len(self.grammar) + 1, embed_size)
-        self.field_embed = nn.Embedding(len(self.grammar.fields) + 1, embed_size)
-        self.depth_embed = nn.Embedding(self.relation.MAX_ABSOLUTE_DEPTH, embed_size)
-        # input of decoder lstm: previous_action + parent_production_rule + current_node_type + tree_depth
+        # embedding matrices for ASDL production rules and fields~(types), plus 1 due to the root node
+        self.production_embed = nn.Embedding(len(self.grammar) + 1, embed_size, padding_idx=len(self.grammar))
+        self.field_embed = nn.Embedding(len(self.grammar.fields) + 1, embed_size, padding_idx=len(self.grammar.fields))
+        self.depth_embed = nn.Embedding(self.relation.MAX_ABSOLUTE_DEPTH, embed_size, padding_idx=0)
+        # input of decoder lstm: sum of previous_action + parent_production_rule + current_node_type + tree_depth
         self.input_layer_norm = nn.LayerNorm(embed_size)
         # for AST decoder, use schema selection by default (for some PLM, embedding size and encoding hidden size are not the same)
         self.schema2action = nn.Linear(args.encoder_hidden_size, embed_size) if args.encoder_hidden_size != embed_size else lambda x: x
@@ -41,7 +41,7 @@ class ASTDecoder(nn.Module):
             self.attention_linear = nn.Sequential(nn.Linear(args.decoder_hidden_size + args.encoder_hidden_size, args.decoder_hidden_size), nn.Tanh())
 
         # output space, ApplyRule, SelectTable, SelectColumn, GenerateToken or copy raw tokens
-        self.apply_rule = TiedLinearClassifier(args.decoder_hidden_size, embed_size, bias=False)
+        self.apply_rule = TiedLinearClassifier(args.decoder_hidden_size, embed_size)
         self.selector = PointerNetwork(args.decoder_hidden_size, args.encoder_hidden_size, num_heads=args.num_heads, dropout=args.dropout)
         self.generator = TiedLinearClassifier(args.decoder_hidden_size, embed_size)
         # generate token from vocabulary or copy tokens from input
@@ -65,10 +65,11 @@ class ASTDecoder(nn.Module):
 
         # previous action embedding, depending on which action_type
         vocab_size, grammar_size = self.tranx.tokenizer.vocab_size, len(self.grammar)
-        prev_actions, init_inputs = batch.ast_actions[:, :-1], encodings.new_zeros((batch.ast_actions.size(0), 1, schema_embed.size(-1)))
+        prev_actions, init_actions = batch.ast_actions[:, :-1], encodings.new_zeros((batch.ast_actions.size(0), 1, schema_embed.size(-1)))
         decoder_token_mask = prev_actions < vocab_size
         decoder_rule_mask = (prev_actions >= vocab_size) & (prev_actions < vocab_size + grammar_size)
         decoder_schema_mask = prev_actions >= vocab_size + grammar_size
+
         prev_inputs = encodings.new_zeros((prev_actions.size(0), prev_actions.size(1), schema_embed.size(-1)))
         if torch.any(decoder_token_mask).item(): # SQL value is optional in the minibatch
             token_input = F.embedding(prev_actions.masked_select(decoder_token_mask), generator_memory)
@@ -78,15 +79,15 @@ class ASTDecoder(nn.Module):
         shift_schema_ids = prev_actions - vocab_size - grammar_size + max_schema_num * torch.arange(len(batch), device=encodings.device).unsqueeze(1)
         schema_input = schema_embed.contiguous().view(-1, schema_embed.size(-1))[shift_schema_ids.masked_select(decoder_schema_mask)]
         prev_inputs.masked_scatter_(decoder_schema_mask.unsqueeze(-1), schema_input)
-        prev_inputs = torch.cat([init_inputs, prev_inputs], dim=1) # right shift one
-        
+        prev_inputs = torch.cat([init_actions, prev_inputs], dim=1) # right shift one
+
         # parent production rule embedding and current field embedding
         parent_prods = self.production_embed(batch.production_ids)
         current_fields = self.field_embed(batch.field_ids)
         inputs = prev_inputs + parent_prods + current_fields
 
         if args.decoder_cell == 'transformer':
-            current_depth = self.depth_embed(torch.clamp(batch.depth_ids, 0, self.max_depth - 1))
+            current_depth = self.depth_embed(torch.clamp(batch.depth_ids, 0, self.max_depth))
             inputs = self.input_layer_norm(inputs + current_depth)
 
             # forward into Astormer
@@ -136,7 +137,7 @@ class ASTDecoder(nn.Module):
                 cur_logprobs = torch.cat([generate_token_logprob, apply_rule_logprob, select_schema_logprob], dim=-1)
 
                 # loss aggregation
-                cur_logprobs = torch.gather(cur_logprobs, dim=-1, index=batch.ast_actions[t].unsqueeze(-1))
+                cur_logprobs = torch.gather(cur_logprobs, dim=-1, index=batch.ast_actions[:, t].unsqueeze(-1))
                 logprobs = torch.cat([logprobs, cur_logprobs], dim=1)
 
         loss = - logprobs.masked_select(batch.tgt_mask).sum()
@@ -167,12 +168,10 @@ class ASTDecoder(nn.Module):
             h_c, history_states = None, encodings.new_zeros(num_examples, 0, args.decoder_hidden_size)
 
         for t in range(batch.max_action_num):
-            num_hyps = [len(beams[bid].hyps) for bid in active_idx]
-            # notice that, different samples may have different forward hyps (not necessarily beam size) depending on the number of frontier fields
+            # notice that, different samples may have different number of forward hyps (not necessarily beam size) depending on the number of frontier fields
             select_index = [bid for bid in active_idx for _ in range(len(beams[bid].hyps))]
             cur_encodings, cur_schema_memory, cur_copy_memory = encodings[select_index], schema_memory[select_index], copy_memory[select_index]
             cur_mask, cur_schema_mask, cur_copy_mask, cur_copy_ids = mask[select_index], schema_mask[select_index], copy_mask[select_index], copy_ids[select_index]
-            cur_decoder_relations = torch.stack([beams[bid].hyps[hid].get_relation(fid, device) for bid in active_idx for hid, fid in enumerate(beams[bid].frontier_ids)], dim=0)
             # previous action embedding, parent production, current field, depth or parent hidden states
             if t == 0: prev_action_embeds = encodings.new_zeros((num_examples, schema_embed.size(-1)))
             else:
@@ -197,32 +196,33 @@ class ASTDecoder(nn.Module):
             if args.decoder_cell == 'transformer':
                 depth_ids = torch.cat([beams[bid].get_current_depth_ids() for bid in active_idx])
                 depth_embeds = self.depth_embed(torch.clamp(depth_ids, min=0, max=self.max_depth))
-                cur_inputs = self.input_affine(self.input_layer_norm(cur_inputs + depth_embeds))
-                inputs = torch.cat([prev_inputs, cur_inputs.unsqueeze(1)], dim=1)
-                outputs = self.decoder_network(inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)
-                prev_inputs, outputs = outputs[:, :-1], outputs[:, -1]
+                cur_inputs = self.input_layer_norm(cur_inputs + depth_embeds)
+                prev_inputs = torch.cat([prev_inputs, self.input_affine(cur_inputs).unsqueeze(1)], dim=1)
+                cur_decoder_relations = torch.stack([beams[bid].hyps[hid].get_relation(fid, device) for bid in active_idx for hid, fid in enumerate(beams[bid].frontier_ids)], dim=0)
+                outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)[:, -1]
             else:
-                if t == 0: parent_states = encodings.new_zeros((len(batch), schema_embed.size(-1)))
+                if t == 0: parent_states = encodings.new_zeros((num_examples, schema_embed.size(-1)))
                 else:
                     parent_ts = torch.cat([beams[bid].get_parent_timesteps() for bid in active_idx])
                     parent_states = torch.gather(history_states, 1, parent_ts.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, history_states.size(-1))).squeeze(1)
                     parent_states = self.hidden2action(parent_states)
-                inputs = self.input_layer_norm(cur_inputs + parent_states)
-                lstm_outputs, (h_t, c_t) = self.decoder_network(inputs.unsqueeze(1), h_c, start=(t==0), prev_idx=prev_idx)
+                cur_inputs = self.input_layer_norm(cur_inputs + parent_states)
+                lstm_outputs, (h_t, c_t) = self.decoder_network(cur_inputs.unsqueeze(1), h_c, start=(t==0), prev_idx=prev_idx)
                 lstm_outputs = lstm_outputs.squeeze(1)
                 context = self.context_attn(lstm_outputs, cur_encodings, cur_mask)
                 outputs = self.attention_linear(torch.cat([lstm_outputs, context], dim=-1))
 
-            apply_rule_logprob = self.apply_rule(outputs, self.production_embed.weight)
-            select_schema_logprob = torch.log(self.selector(outputs, cur_schema_memory, mask=cur_schema_mask) + 1e-32)
-            gate = self.switcher(torch.cat([outputs, inputs], dim=-1))
+            gate = self.switcher(torch.cat([outputs, cur_inputs], dim=-1))
             copy_token_prob = self.selector(outputs, cur_copy_memory, mask=cur_copy_mask) * gate
             gen_token_prob = self.generator(outputs, generator_memory, log=False) * (1 - gate)
             generate_token_prob = gen_token_prob.scatter_add_(1, cur_copy_ids, copy_token_prob)
             generate_token_logprob = torch.log(generate_token_prob + 1e-32)
-            ar_scores, ss_scores, gt_scores = torch.split(apply_rule_logprob, num_hyps), torch.split(select_schema_logprob, num_hyps), torch.split(generate_token_logprob, num_hyps)
+            apply_rule_logprob = self.apply_rule(outputs, self.production_embed.weight)
+            select_schema_logprob = torch.log(self.selector(outputs, cur_schema_memory, mask=cur_schema_mask) + 1e-32)
 
             # rank and select based on AST type constraints
+            num_hyps = [len(beams[bid].hyps) for bid in active_idx]
+            ar_scores, ss_scores, gt_scores = torch.split(apply_rule_logprob, num_hyps), torch.split(select_schema_logprob, num_hyps), torch.split(generate_token_logprob, num_hyps)
             new_active_idx, cum_num_hyps, live_hyp_ids = [], np.cumsum([0] + num_hyps), []
             for idx, bid in enumerate(active_idx):
                 beams[bid].advance(ar_scores[idx], ss_scores[idx], gt_scores[idx])
@@ -233,13 +233,13 @@ class ASTDecoder(nn.Module):
             if not new_active_idx: # all beams are finished
                 break
 
-            # update each unfinished beam and record active h_c, hidden_states and context vector
+            # update each unfinished beam and record active history infos
             active_idx = new_active_idx
-            if args.decoder_cell == 'transformer':
+            if args.decoder_cell == 'transformer': prev_inputs = prev_inputs[live_hyp_ids]
+            else: 
                 h_c = (h_t[:, live_hyp_ids], c_t[:, live_hyp_ids])
                 history_states = torch.cat([history_states[live_hyp_ids], h_c[0][-1].unsqueeze(1)], dim=1)
                 prev_idx = prev_idx[live_hyp_ids]
-            else: prev_inputs = prev_inputs[live_hyp_ids]
 
         completed_hyps = [b.sort_finished() for b in beams]
         return completed_hyps
