@@ -68,7 +68,7 @@ if not args.testing:
     else: train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False, collate_fn=train_collate_fn)
 
     # set optimizer and scheduler
-    eval_per_iter, loss_per_iter = 10000, 1000
+    eval_per_iter, loss_per_iter = 5000, 1000
     num_training_steps = args.max_iter * loss_per_iter
     num_warmup_steps = int(num_training_steps * args.warmup_ratio)
     optimizer, scheduler = set_optimizer(base_model, args, num_training_steps, module=base_model.encoder.input_layer, module_name='plm')
@@ -94,7 +94,6 @@ if not args.testing:
             with cntx:
                 loss = model(current_batch)
                 (world_size * loss).backward()
-                print(f'Minibatch loss {loss.item():.4f}')
                 loss_tracker += loss.item()
                 if update_flag:
                     optimizer.step()

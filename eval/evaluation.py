@@ -559,7 +559,8 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
         for type_ in partial_types:
             scores[level]['partial'][type_] = {'acc': 0., 'rec': 0., 'f1': 0.,'acc_count':0,'rec_count':0}
 
-    for i, (p, g) in tqdm(enumerate(zip(plist, glist)), desc='Compare Pred SQL with Gold SQL', total=len(plist)):
+    # for i, (p, g) in tqdm(enumerate(zip(plist, glist)), desc='Compare Pred SQL with Gold SQL', total=len(plist)):
+    for i, (p, g) in enumerate(zip(plist, glist)):
         # if (i + 1) % 10 == 0:
             # print('Evaluating %dth prediction' % (i + 1))
         scores['joint_all']['count'] += 1

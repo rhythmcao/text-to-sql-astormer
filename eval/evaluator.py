@@ -19,8 +19,7 @@ class ExecutionChecker():
         db_id = db['db_id']
         db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
         sql = postprocess(sql)
-        loop = asyncio.get_event_loop()
-        flag, _ = loop.run_until_complete(exec_on_db(db_path, sql))
+        flag, _ = asyncio.run(exec_on_db(db_path, sql))
         if flag == 'exception':
             return False
         return True

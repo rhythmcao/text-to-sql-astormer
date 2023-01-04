@@ -1,7 +1,6 @@
 #coding=utf8
 import torch
 from typing import List
-from collections import Counter
 from nsts.hypothesis import Hypothesis
 from nsts.transition_system import Action, ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
 
@@ -23,32 +22,32 @@ class ASTBeam():
         self.device = device
         # record the current hypothesis and current input fields
         self.hyps: List[Hypothesis] = [Hypothesis(self.tranx, self.decode_order)]
-        self.frontier_ids: List[int] = [None] # one-to-one corresponding to self.hyps
+        self.frontier_ids: List[int] = [0] # one-to-one corresponding to self.hyps
         self.live_hyp_ids: List[int] = [0] # record the index of previous hyp in self.hyps
         self.completed_hyps: List[Hypothesis] = []
 
 
     def get_parent_prod_ids(self) -> torch.LongTensor:
         return torch.tensor([
-            self.grammar.prod2id[hyp.frontier_info[fid].parent_node.production] if hyp.frontier_info[fid] is not None else len(self.grammar)
+            self.grammar.prod2id[hyp.frontier_info[fid].parent_node.production]
                 for hyp, fid in zip(self.hyps, self.frontier_ids)], dtype=torch.long, device=self.device)
 
 
     def get_current_field_ids(self) -> torch.LongTensor:
         return torch.tensor([
-            self.grammar.field2id[hyp.frontier_info[fid].field] if hyp.frontier_info[fid] is not None else len(self.grammar.field2id)
+            self.grammar.field2id[hyp.frontier_info[fid].field]
                 for hyp, fid in zip(self.hyps, self.frontier_ids)], dtype=torch.long, device=self.device)
 
 
     def get_current_depth_ids(self) -> torch.LongTensor:
         return torch.tensor([
-            hyp.frontier_info[fid].parent_node.depth + 1 if hyp.frontier_info[fid] is not None else 0
+            hyp.frontier_info[fid].parent_node.depth + 1
                 for hyp, fid in zip(self.hyps, self.frontier_ids)], dtype=torch.long, device=self.device)
 
 
     def get_parent_timesteps(self) -> torch.LongTensor:
         return torch.tensor([
-            hyp.frontier_info[fid].parent_node.created_time if hyp.frontier_info[fid] is not None else 0
+            hyp.frontier_info[fid].parent_node.created_time
                 for hyp, fid in zip(self.hyps, self.frontier_ids)], dtype=torch.long, device=self.device)
 
 
@@ -67,7 +66,7 @@ class ASTBeam():
         for idx in range(len(self.hyps)):
             hyp, fid = self.hyps[idx], self.frontier_ids[idx]
             frontier_field = hyp.frontier_info[fid]
-            act_type = self.tranx.field_to_action(frontier_field.field)
+            act_type = self.tranx.field_to_action(frontier_field)
             if act_type == ApplyRuleAction:
                 frontier_type = frontier_field.type if frontier_field else self.grammar.root_type
                 valid_productions = self.grammar[frontier_type]
@@ -117,7 +116,7 @@ class ASTBeam():
             next_frontier_ids = new_hyp.get_next_frontier_ids()
             new_frontier_ids.extend(next_frontier_ids)
             new_hyps.extend([new_hyp] * len(next_frontier_ids))
-            live_hyp_ids.append([hyp_id] * len(next_frontier_ids))
+            live_hyp_ids.extend([hyp_id] * len(next_frontier_ids))
 
         if new_hyps: self.hyps, self.frontier_ids, self.live_hyp_ids = new_hyps, new_frontier_ids, live_hyp_ids
         else: self.hyps, self.frontier_ids, self.live_hyp_ids = [], [], []

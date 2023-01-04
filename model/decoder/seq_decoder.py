@@ -34,7 +34,7 @@ class SEQDecoder(nn.Module):
         if (not args.no_select_schema) or (not args.no_copy_mechanism):
             self.selector = PointerNetwork(args.decoder_hidden_size, args.encoder_hidden_size, num_heads=args.num_heads, dropout=args.dropout)
         self.gate_num = 3 - int(args.no_select_schema) - int(args.no_copy_mechanism)
-        if self.gate_num > 1: self.switcher = nn.Linear(args.decoder_hidden_size + args.embed_size, (self.gate_num + 1) // 2)
+        if self.gate_num > 1: self.switcher = nn.Linear(args.decoder_hidden_size + args.embed_size, 2 * self.gate_num - 3)
         self.loss_function = nn.NLLLoss(reduction='sum', ignore_index=self.tranx.tokenizer.pad_token_id)
 
 
@@ -101,7 +101,7 @@ class SEQDecoder(nn.Module):
             `copy` memory (bs x copy_len x dim), `copy_ids` (map input to target vocab position, bs x copy_len), `generator` memory for token generation (vocab_size x dim),
             and masks `mask`, `schema_mask`, `copy_mask` for each memory.
         """
-        args, vocab_size = self.args, self.tranx.tokenzier.vocab_size
+        args, vocab_size = self.args, self.tranx.tokenizer.vocab_size
         # repeat input beam_size times
         encodings, mask = tile([memories['encodings'], memories['mask']], beam_size)
         generator_memory = memories['generator']
@@ -114,7 +114,7 @@ class SEQDecoder(nn.Module):
         num_samples, batch_idx = len(batch), list(range(len(batch)))
         beams = [SEQBeam(self.tranx, db, beam_size, n_best, encodings.device) for db in batch.database]
         if args.decoder_cell == 'transformer': prev_inputs = encodings.new_zeros((num_samples * beam_size, 0, args.decoder_hidden_size))
-        else: h_c, prev_ids = None, torch.arange(num_samples * beam_size, dtype=torch.long, device=encodings.device)
+        else: h_c, prev_idx = None, torch.arange(num_samples * beam_size, dtype=torch.long, device=encodings.device)
 
         for t in range(batch.max_action_num):
             # (a) construct inputs from remaining samples
@@ -137,7 +137,7 @@ class SEQDecoder(nn.Module):
                 outputs = self.decoder_network(prev_inputs.transpose(0, 1), encodings.transpose(0, 1), tgt_mask=~ subsequent_mask,
                     memory_key_padding_mask=~ mask).transpose(0, 1)[:, -1] # num_hyps x hs
             else:
-                outputs, (h_t, c_t) = self.decoder_network(inputs.unsqueeze(1), h_c, start=(t==0), prev_ids=prev_ids)
+                outputs, (h_t, c_t) = self.decoder_network(inputs.unsqueeze(1), h_c, start=(t==0), prev_idx=prev_idx)
                 outputs = outputs.squeeze(1)
                 context = self.context_attn(outputs, encodings, mask)
                 outputs = self.attention_linear(torch.cat([outputs, context], dim=-1)) # num_hyps x hs
@@ -175,7 +175,7 @@ class SEQDecoder(nn.Module):
             # (d) update hidden_states history
             select_indexes = torch.cat(select_indexes, dim=0)
             if args.decoder_cell == 'transformer': prev_inputs = prev_inputs[select_indexes]
-            else: h_c, prev_ids = (h_t[:, select_indexes], c_t[:, select_indexes]), prev_ids[select_indexes]
+            else: h_c, prev_idx = (h_t[:, select_indexes], c_t[:, select_indexes]), prev_idx[select_indexes]
 
             # (e) reserve un-finished batches
             active_idx = torch.tensor([item[1] for item in active], dtype=torch.long, device=encodings.device) # original order in remaining batch
@@ -198,7 +198,7 @@ class SEQDecoder(nn.Module):
                     schema_memory, schema_mask = update_active(schema_memory), update_active(schema_mask)
 
                 if args.decoder_cell == 'transformer': prev_inputs = update_active(prev_inputs)
-                else: h_c, prev_ids = (update_active(h_c[0], dim=1), update_active(h_c[1], dim=1)), update_active(prev_ids)
+                else: h_c, prev_idx = (update_active(h_c[0], dim=1), update_active(h_c[1], dim=1)), update_active(prev_idx)
 
             num_samples = len(active)
 

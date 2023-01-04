@@ -335,9 +335,9 @@ class TransitionSystem(object):
         a.k.a., select_schema=True, instead of generated from the word vocabulary.
         """
         vocab_size = self.tokenizer.vocab_size
+        table_names = db['table_names_original']
 
         if any(filter(lambda x: x >= vocab_size, token_ids)):
-            table_names = db['table_names_original']
             try:
                 if token_ids[0] == self.tokenizer.cls_token_id: token_ids = token_ids[1:]
                 if token_ids[-1] == self.tokenizer.sep_token_id: token_ids = token_ids[:-1]
@@ -353,6 +353,7 @@ class TransitionSystem(object):
                 return f'select * from {table_names[0]}', False
 
         tokens = self.tokenizer.convert_ids_to_tokens(token_ids, skip_special_tokens=True)
+        if len(tokens) == 0: return f'select * from {table_names[0]}', False
         return self.tokenizer.convert_tokens_to_string(tokens), True
 
 

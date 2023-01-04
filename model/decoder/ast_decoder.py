@@ -172,9 +172,17 @@ class ASTDecoder(nn.Module):
             select_index = [bid for bid in active_idx for _ in range(len(beams[bid].hyps))]
             cur_encodings, cur_schema_memory, cur_copy_memory = encodings[select_index], schema_memory[select_index], copy_memory[select_index]
             cur_mask, cur_schema_mask, cur_copy_mask, cur_copy_ids = mask[select_index], schema_mask[select_index], copy_mask[select_index], copy_ids[select_index]
+
             # previous action embedding, parent production, current field, depth or parent hidden states
-            if t == 0: prev_action_embeds = encodings.new_zeros((num_examples, schema_embed.size(-1)))
+            if t == 0:
+                prev_action_embeds = encodings.new_zeros((num_examples, schema_embed.size(-1)))
+                prod_ids = torch.full((num_examples,), len(self.grammar), dtype=torch.long, device=device)
+                prod_embeds = self.production_embed(prod_ids)
+                field_ids = torch.full((num_examples,), len(self.grammar.fields), dtype=torch.long, device=device)
+                field_embeds = self.field_embed(field_ids)
+                cur_inputs = prev_action_embeds + prod_embeds + field_embeds
             else:
+                prev_action_embeds = []
                 prev_actions = [beams[bid].get_previous_actions() for bid in active_idx]
                 for bid, actions in zip(active_idx, prev_actions):
                     for action in actions:
@@ -183,18 +191,20 @@ class ASTDecoder(nn.Module):
                         elif isinstance(action, SelectTableAction):
                             prev_action_embeds.append(schema_embed[bid, action.token])
                         elif isinstance(action, SelectColumnAction): # notice the bias of table number for columns
-                            prev_action_embeds.append(schema_embed[bid, len(batch.database[bid]['table']) + action.token])
+                            prev_action_embeds.append(schema_embed[bid, batch.database[bid]['table'] + action.token])
                         elif isinstance(action, GenerateTokenAction):
                             prev_action_embeds.append(generator_memory[action.token])
                         else: raise ValueError('[ERROR]: Unrecognized action type!')
+                prev_action_embeds = torch.stack(prev_action_embeds, dim=0)
+                prod_ids = torch.cat([beams[bid].get_parent_prod_ids() for bid in active_idx])
+                prod_embeds = self.production_embed(prod_ids)
+                field_ids = torch.cat([beams[bid].get_current_field_ids() for bid in active_idx])
+                field_embeds = self.field_embed(field_ids)
+                cur_inputs = prev_action_embeds + prod_embeds + field_embeds
 
-            prod_ids = torch.cat([beams[bid].get_parent_prod_ids() for bid in active_idx])
-            prod_embeds = self.production_embed(prod_ids)
-            field_ids = torch.cat([beams[bid].get_current_field_ids() for bid in active_idx])
-            field_embeds = self.field_embed(field_ids)
-            cur_inputs = prev_action_embeds + prod_embeds + field_embeds
             if args.decoder_cell == 'transformer':
-                depth_ids = torch.cat([beams[bid].get_current_depth_ids() for bid in active_idx])
+                if t == 0: depth_ids = prod_ids.new_zeros((num_examples,))
+                else: depth_ids = torch.cat([beams[bid].get_current_depth_ids() for bid in active_idx])
                 depth_embeds = self.depth_embed(torch.clamp(depth_ids, min=0, max=self.max_depth))
                 cur_inputs = self.input_layer_norm(cur_inputs + depth_embeds)
                 prev_inputs = torch.cat([prev_inputs, self.input_affine(cur_inputs).unsqueeze(1)], dim=1)

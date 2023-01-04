@@ -134,8 +134,9 @@ class Hypothesis(object):
                 self.frontier_info.extend(unrealized_fields)
                 self.frontier_path.extend(unrealized_paths)
             else:
-                self.frontier_info = unrealized_fields.extend(self.frontier_info)
-                self.frontier_path = unrealized_paths.extend(self.frontier_path)
+                unrealized_fields.extend(self.frontier_info)
+                unrealized_paths.extend(self.frontier_path)
+                self.frontier_info, self.frontier_path = unrealized_fields, unrealized_paths
         else: pass # primitive types, no children
         return
 
