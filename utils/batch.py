@@ -82,9 +82,6 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
                 else: return action_info.action_id
 
             def get_decoder_relation(relation):
-                tri_mask = torch.tril(torch.ones((relation.size(0), relation.size(0)), dtype=torch.bool))
-                # TODO: after check the assert, remove it
-                assert torch.any(relation.masked_select(tri_mask) == 0).item() == False
                 return F.pad(relation, (0, max_action_num - relation.size(0), 0, max_action_num - relation.size(0)), value=0)
 
             batch.ast_actions = torch.tensor([[get_action_id(action_info, eid) for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for eid, action_infos in enumerate(action_infos_list)], dtype=torch.long, device=device)

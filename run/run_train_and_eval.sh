@@ -1,7 +1,7 @@
-task=debug
+task=astormer
 dataset=spider
 seed=999
-device=-1
+device=0
 ddp='' # --ddp
 
 plm=roberta-base
@@ -20,7 +20,7 @@ dropout=0.2
 batch_size=20
 test_batch_size=50
 grad_accumulate=1
-lr=1e-4
+lr=2e-4
 l2=0.1
 layerwise_decay=0.8
 warmup_ratio=0.1
