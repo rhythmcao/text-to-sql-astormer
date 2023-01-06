@@ -632,11 +632,12 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                 p_sql = rebuild_sql_col(p_valid_col_units, p_sql, kmap)
                 exact_score = evaluator.eval_exact_match(p_sql, g_sql)
                 partial_scores = evaluator.partial_scores
-                if exact_score == 0 and (etype == "match" or (etype == "all" and turn_scores['exec'][-1] == 1)):
+                if exact_score == 0:
                     turn_scores['exact'].append(0)
-                    print("{} pred: {}".format(hardness, p_str))
-                    print("{} gold: {}".format(hardness, g_str))
-                    print("")
+                    if etype == "match" or (etype == "all" and turn_scores['exec'][-1] == 1):
+                        print("{} pred: {}".format(hardness, p_str))
+                        print("{} gold: {}".format(hardness, g_str))
+                        print("")
                 else:
                     turn_scores['exact'].append(1)
                 scores[turn_id]['exact'] += exact_score

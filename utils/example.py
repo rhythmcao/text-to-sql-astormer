@@ -42,7 +42,7 @@ class Example():
 
 
     @classmethod
-    def load_dataset(cls, choice='train', dataset_path=None, DEBUG=True):
+    def load_dataset(cls, choice='train', dataset_path=None, DEBUG=False):
         if dataset_path is None:
             assert choice in ['train', 'dev']
             choice = 'train' if DEBUG else choice
@@ -56,7 +56,8 @@ class Example():
             if 'interaction' in ex: # multi-turn dataset
                 db = cls.tables[ex['database_id']]
                 if choice == 'train' and len(db['column_names']) > 100: continue # skip large dataset
-                if 'question_id' not in ex['interaction'][0]: ex = cls.processor.pipeline(ex, db)
+                if len(ex['interaction']) > 0 and 'question_id' not in ex['interaction'][0]:
+                    ex = cls.processor.pipeline(ex, db)
                 for turn in ex['interaction']:
                     turn['db_id'] = db['db_id']
                     examples.append(cls(turn, db, idx))

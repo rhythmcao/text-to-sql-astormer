@@ -19,6 +19,7 @@ class ExecutionChecker():
         db_id = db['db_id']
         db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
         sql = postprocess(sql)
+        if not os.path.exists(db_path): return True
         flag, _ = asyncio.run(exec_on_db(db_path, sql))
         if flag == 'exception':
             return False
@@ -41,9 +42,15 @@ class Evaluator():
         schemas = {}
         tables = json.load(open(table_path, 'r'))
         for db in tables:
-            db = db['db_id']
-            db_path = os.path.join(self.db_dir, db, db + ".sqlite")
-            schemas[db] = Schema(get_schema(db_path))
+            db_id = db['db_id']
+            db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
+            if os.path.exists(db_path):
+                schemas[db_id] = Schema(get_schema(db_path))
+            else:
+                schema = {}
+                for tab_id, tab_name in enumerate(db['table_names_original']):
+                    schema[tab_name.lower()] = [col_name.lower() for tid, col_name in db['column_names_original'] if tid == tab_id]
+                schemas[db_id] = Schema(schema)
         return schemas
 
 
