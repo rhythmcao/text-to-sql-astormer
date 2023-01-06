@@ -20,8 +20,8 @@ class ASTDecoder(nn.Module):
 
         embed_size = args.embed_size # the same size as word embeddings, defined in the encoder
         # embedding matrices for ASDL production rules and fields~(types), plus 1 due to the root node
-        self.production_embed = nn.Embedding(len(self.grammar) + 1, embed_size, padding_idx=len(self.grammar))
-        self.field_embed = nn.Embedding(len(self.grammar.fields) + 1, embed_size, padding_idx=len(self.grammar.fields))
+        self.production_embed = nn.Embedding(len(self.grammar.prod2id) + 1, embed_size, padding_idx=len(self.grammar.prod2id))
+        self.field_embed = nn.Embedding(len(self.grammar.field2id) + 1, embed_size, padding_idx=len(self.grammar.field2id))
         self.depth_embed = nn.Embedding(self.relation.MAX_ABSOLUTE_DEPTH, embed_size, padding_idx=0)
         # input of decoder lstm: sum of previous_action + parent_production_rule + current_node_type + tree_depth
         self.input_layer_norm = nn.LayerNorm(embed_size)
@@ -176,9 +176,9 @@ class ASTDecoder(nn.Module):
             # previous action embedding, parent production, current field, depth or parent hidden states
             if t == 0:
                 prev_action_embeds = encodings.new_zeros((num_examples, schema_embed.size(-1)))
-                prod_ids = torch.full((num_examples,), len(self.grammar), dtype=torch.long, device=device)
+                prod_ids = torch.full((num_examples,), len(self.grammar.prod2id), dtype=torch.long, device=device)
                 prod_embeds = self.production_embed(prod_ids)
-                field_ids = torch.full((num_examples,), len(self.grammar.fields), dtype=torch.long, device=device)
+                field_ids = torch.full((num_examples,), len(self.grammar.field2id), dtype=torch.long, device=device)
                 field_embeds = self.field_embed(field_ids)
                 cur_inputs = prev_action_embeds + prod_embeds + field_embeds
             else:
