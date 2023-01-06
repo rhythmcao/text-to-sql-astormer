@@ -622,9 +622,9 @@ def parse_sql(toks, start_idx, tables_with_alias, schema):
     return idx, sql
 
 
-def get_sql(query, table, use_id=True):
+def get_sql(query, table):
     toks = tokenize(query)
-    schema = SchemaID(table) if use_id else Schema(table)
+    schema = SchemaID(table)
     tables_with_alias, toks = get_tables_with_alias(schema.schema, toks)
     _, sql = parse_sql(toks, 0, tables_with_alias, schema)
     return sql
@@ -640,7 +640,7 @@ def skip_semicolon(toks, start_idx):
 class JsonParser():
 
     def parse(self, sql: str, table: dict):
-        return get_sql(sql, table, use_id=True)
+        return get_sql(sql, table)
 
 
 def parse_dataset(input_path, table_path):

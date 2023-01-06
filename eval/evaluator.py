@@ -4,22 +4,145 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from eval.evaluation import build_foreign_key_map_from_json, evaluate
 from eval.evaluation import Evaluator as Engine
 from eval.exec_eval import postprocess, exec_on_db
-from eval.process_sql import get_schema, Schema
 from nsts.transition_system import CONFIG_PATHS, TransitionSystem
+from nsts.parse_sql_to_json import get_sql
+
+
+class SurfaceChecker():
+
+    def validity_check(self, sql: str, db: dict) -> bool:
+        """ Check whether the given sql query is valid, including:
+        1. only use columns in tables mentioned in FROM clause
+        2. table JOIN conditions t1.col1=t2.col2, t1.col1 and t2.col2 belongs to different tables
+        3. comparison operator or MAX/MIN/SUM/AVG only applied to columns of type number/time
+        @args:
+            sql(str): SQL query
+            db(dict): database dict
+        @return:
+            flag(boolean)
+        """
+        try:
+            sql = get_sql(sql, db)
+            return self.sql_check(sql, db)
+        except Exception as e:
+            return False
+
+
+    def sql_check(self, sql: dict, db: dict):
+        if sql['intersect']:
+            return self.sqlunit_check(sql, db) & self.sqlunit_check(sql['intersect'], db)
+        if sql['union']:
+            return self.sqlunit_check(sql, db) & self.sqlunit_check(sql['union'], db)
+        if sql['except']:
+            return self.sqlunit_check(sql, db) & self.sqlunit_check(sql['except'], db)
+        return self.sqlunit_check(sql, db)
+
+
+    def sqlunit_check(self, sql: dict, db: dict):
+        if sql['from']['table_units'][0][0] == 'sql':
+            if not self.sql_check(sql['from']['table_units'][0][1], db): return False
+            table_ids = []
+        else:
+            table_ids = list(map(lambda table_unit: table_unit[1], sql['from']['table_units']))
+            if len(sql['from']['conds']) > 0: # predict FROM conditions
+                if not self.from_condition_check(sql['from']['conds'], table_ids, db): return False
+        return self.select_check(sql['select'], table_ids, db) & \
+            self.cond_check(sql['where'], table_ids, db) & \
+            self.groupby_check(sql['groupBy'], table_ids, db) & \
+            self.cond_check(sql['having'], table_ids, db) & \
+            self.orderby_check(sql['orderBy'], table_ids, db)
+
+
+    def from_condition_check(self, conds: list, table_ids: list, db: dict):
+        count = {tid: table_ids.count(tid) for tid in table_ids} # number of occurrences for each table
+        for cond in conds:
+            if cond in ['and', 'or']: continue
+            _, _, val_unit, val1, _ = cond
+            col_id1, col_id2 = val_unit[1][1], val1[1]
+            tid1, tid2 = db['column_names'][col_id1][0], db['column_names'][col_id2][0]
+            if tid1 not in table_ids or tid2 not in table_ids: return False
+            if tid1 == tid2 and count[tid1] == 1: return False # if JOIN the same table, table must appear multiple times in FROM
+        return True
+
+
+    def select_check(self, select, table_ids: list, db: dict):
+        select = select[1]
+        for agg_id, val_unit in select:
+            if not self.valunit_check(val_unit, table_ids, db): return False
+        return True
+
+
+    def cond_check(self, cond, table_ids: list, db: dict):
+        if len(cond) == 0: return True
+        for idx in range(0, len(cond), 2):
+            cond_unit = cond[idx]
+            _, cmp_op, val_unit, val1, val2 = cond_unit
+            flag = self.valunit_check(val_unit, table_ids, db)
+            if type(val1) == dict:
+                flag &= self.sql_check(val1, db)
+            if type(val2) == dict:
+                flag &= self.sql_check(val2, db)
+            if not flag: return False
+        return True
+
+
+    def groupby_check(self, groupby, table_ids: list, db: dict):
+        if not groupby: return True
+        for col_unit in groupby:
+            if not self.colunit_check(col_unit, table_ids, db): return False
+        return True
+
+
+    def orderby_check(self, orderby, table_ids: list, db: dict):
+        if not orderby: return True
+        orderby = orderby[1]
+        for val_unit in orderby:
+            if not self.valunit_check(val_unit, table_ids, db): return False
+        return True
+
+
+    def colunit_check(self, col_unit: list, table_ids: list, db: dict):
+        """ Check from the following aspects:
+        1. column belongs to the tables in FROM clause
+        2. column type is valid for AGG_OP
+        """
+        agg_id, col_id, _ = col_unit
+        if col_id == 0: return True
+        tab_id = db['column_names'][col_id][0]
+        if tab_id not in table_ids: return False
+        col_type = db['column_types'][col_id]
+        if agg_id in [1, 2, 4, 5]: # MAX, MIN, SUM, AVG
+            return (col_type in ['time', 'number'])
+        return True
+
+
+    def valunit_check(self, val_unit: list, table_ids: list, db: dict):
+        unit_op, col_unit1, col_unit2 = val_unit
+        if unit_op == 0: return self.colunit_check(col_unit1, table_ids, db)
+        if not (self.colunit_check(col_unit1, table_ids, db) and self.colunit_check(col_unit2, table_ids, db)): return False
+        # COUNT/SUM/AVG -> number
+        agg_id1, col_id1, _ = col_unit1
+        agg_id2, col_id2, _ = col_unit2
+        t1 = 'number' if agg_id1 > 2 else db['column_types'][col_id1]
+        t2 = 'number' if agg_id2 > 2 else db['column_types'][col_id2]
+        if (t1 not in ['number', 'time']) or (t2 not in ['number', 'time']) or t1 != t2: return False
+        return True
 
 
 class ExecutionChecker():
 
-    def __init__(self, db_dir: str) -> None:
+    def __init__(self, table_path: str, db_dir: str) -> None:
         super(ExecutionChecker, self).__init__()
-        self.db_dir = db_dir
+        self.table_path, self.db_dir = table_path, db_dir
+        self.surface_checker = SurfaceChecker()
 
 
     def validity_check(self, sql: str, db: dict) -> bool:
         db_id = db['db_id']
         db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
         sql = postprocess(sql)
-        if not os.path.exists(db_path): return True
+        # if not os.path.exists(db_path):
+        return self.surface_checker.validity_check(sql, db)
         flag, _ = asyncio.run(exec_on_db(db_path, sql))
         if flag == 'exception':
             return False
@@ -34,24 +157,7 @@ class Evaluator():
         self.table_path = CONFIG_PATHS[dataset]['tables'] if table_path is None else table_path
         self.db_dir = CONFIG_PATHS[dataset]['db_dir'] if db_dir is None else db_dir
         self.kmaps = build_foreign_key_map_from_json(self.table_path)
-        self.schemas = self._load_schemas(self.table_path)
-        self.engine, self.exec_checker = Engine(), ExecutionChecker(self.db_dir)
-
-
-    def _load_schemas(self, table_path):
-        schemas = {}
-        tables = json.load(open(table_path, 'r'))
-        for db in tables:
-            db_id = db['db_id']
-            db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
-            if os.path.exists(db_path):
-                schemas[db_id] = Schema(get_schema(db_path))
-            else:
-                schema = {}
-                for tab_id, tab_name in enumerate(db['table_names_original']):
-                    schema[tab_name.lower()] = [col_name.lower() for tid, col_name in db['column_names_original'] if tid == tab_id]
-                schemas[db_id] = Schema(schema)
-        return schemas
+        self.engine, self.exec_checker = Engine(), ExecutionChecker(self.table_path, self.db_dir)
 
 
     def change_database(self, db_dir):
@@ -138,7 +244,7 @@ if __name__ == '__main__':
 
     error_count = 0
     tables = {db['db_id']: db for db in json.load(open(CONFIG_PATHS[args.dataset]['tables'], 'r'))}
-    checker = ExecutionChecker(CONFIG_PATHS[args.dataset]['db_dir'])
+    checker = ExecutionChecker(CONFIG_PATHS[args.dataset]['tables'], CONFIG_PATHS[args.dataset]['db_dir'])
     dataset = json.load(open(CONFIG_PATHS[args.dataset][args.data_split], 'r'))
 
     for idx, ex in tqdm(enumerate(dataset), desc='Execution check', total=len(dataset)):
