@@ -71,8 +71,7 @@ class Hypothesis(object):
         if self.tree is None: # the first action must be ApplyRule
             assert isinstance(action, ApplyRuleAction) and self.t == 0 and frontier_idx == 0, 'Invalid action [%s], only ApplyRule action is valid ' \
                                                         'at the beginning of decoding' % (action)
-            production = grammar.id2prod[action.production_id]
-            self.tree = AbstractSyntaxTree(production, created_time=self.t, depth=0)
+            self.tree = AbstractSyntaxTree(grammar.id2prod[action.production_id], created_time=self.t, depth=0)
             self.update_frontier_info(frontier_idx)
         else:
             if isinstance(frontier_field.type, ASDLCompositeType):

@@ -64,7 +64,7 @@ class ASTDecoder(nn.Module):
         copy_memory, copy_ids, copy_mask = memories['copy'], memories['copy_ids'], memories['copy_mask']
 
         # previous action embedding, depending on which action_type
-        vocab_size, grammar_size = self.tranx.tokenizer.vocab_size, len(self.grammar)
+        vocab_size, grammar_size = self.tranx.tokenizer.vocab_size, len(self.grammar.prod2id) + 1
         prev_actions, init_actions = batch.ast_actions[:, :-1], encodings.new_zeros((batch.ast_actions.size(0), 1, schema_embed.size(-1)))
         decoder_token_mask = prev_actions < vocab_size
         decoder_rule_mask = (prev_actions >= vocab_size) & (prev_actions < vocab_size + grammar_size)

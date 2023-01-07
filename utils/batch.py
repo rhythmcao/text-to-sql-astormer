@@ -69,7 +69,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order) 
                 if decode_order != 'dfs+l2r' else (ex.action, ex.decoder_relation) for ex in ex_list]))
             max_action_num = max([len(action) for action in action_infos_list])
-            vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.grammar)
+            vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.grammar.prod2id) + 1
             table_nums = [len(ex.db['table_names']) for ex in ex_list]
 
             def get_action_id(action_info, eid):

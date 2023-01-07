@@ -16,8 +16,7 @@ class ASTBeam():
         """
         assert beam_size >= 1
         self.tranx, self.grammar = tranx, tranx.grammar
-        self.token_num, self.grammar_num = self.tranx.tokenizer.vocab_size, len(self.grammar)
-        self.table_num, self.column_num = database['table'], database['column']
+        self.token_num, self.table_num, self.column_num = self.tranx.tokenizer.vocab_size, database['table'], database['column']
         self.beam_size, self.n_best, self.decode_order = beam_size, n_best, decode_order
         self.device = device
         # record the current hypothesis and current input fields
