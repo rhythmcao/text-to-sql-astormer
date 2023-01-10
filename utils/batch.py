@@ -5,6 +5,8 @@ from functools import partial
 from utils.example import Example, get_position_ids
 from model.model_utils import lens2mask, cached_property
 from nsts.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction
+from nsts.relation_utils import ENCODER_RELATIONS
+from preprocess.preprocess_utils import get_question_relation
 
 
 def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
@@ -52,11 +54,20 @@ def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
         batch.mask = lens2mask(batch.question_lens + batch.schema_lens)
         max_len = batch.mask.size(-1)
         batch.select_schema_mask = torch.tensor([ex.select_schema_mask + [0] * (max_len - len(ex.select_schema_mask)) for ex in ex_list], dtype=torch.bool, device=device)
-        batch.select_copy_mask = torch.tensor([ex.select_copy_mask + [0] * (max_len -  - len(ex.select_copy_mask)) for ex in ex_list], dtype=torch.bool, device=device)
+        batch.select_copy_mask = torch.tensor([ex.select_copy_mask + [0] * (max_len - len(ex.select_copy_mask)) for ex in ex_list], dtype=torch.bool, device=device)
         batch.copy_mask = batch.question_mask # only question token ids
         max_copy_len = batch.question_mask.size(-1)
         batch.copy_ids = torch.tensor([ex.copy_id + [pad_idx] * (max_copy_len - len(ex.copy_id)) for ex in ex_list], dtype=torch.long, device=device)
-
+        pad_idx = ENCODER_RELATIONS.index('padding-padding')
+        batch.encoder_relations = torch.stack([
+            F.pad(torch.cat(
+                    [
+                        torch.cat([get_question_relation(ex.separator_pos), ex.encoder_relation[0]], dim=1),
+                        torch.cat([ex.encoder_relation[1], ex.db['relation']], dim=1)
+                    ], dim=0
+                ), (0, max_len - len(ex.select_schema_mask), 0, max_len - len(ex.select_schema_mask)), value=pad_idx) for ex in ex_list
+        ], dim=0).to(device)
+        batch.encoder_relations_mask = batch.encoder_relations == pad_idx
     return batch
 
 

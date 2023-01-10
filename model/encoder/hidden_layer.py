@@ -5,14 +5,14 @@ from model.model_utils import Registrable, clones, FFN
 from nsts.relation_utils import ENCODER_RELATIONS
 
 
-@Registrable.register('rgat')
+@Registrable.register('rgatsql')
 class RGATHiddenLayer(nn.Module):
     """ A stacked layers of relational graph attention network~(RGAT).
     """
     def __init__(self, args, tranx):
         super(RGATHiddenLayer, self).__init__()
         hs, hd, rn = args.encoder_hidden_size, args.num_heads, len(ENCODER_RELATIONS)
-        self.num_layers = args.encoder_num_layers
+        self.num_layers, self.num_heads = args.encoder_num_layers, args.num_heads
         self.relation_embed_k, self.relation_embed_v = None, None
         pad_idx = ENCODER_RELATIONS.index('padding-padding')
         self.relation_embed_k = nn.Embedding(rn, hs // hd, padding_idx=pad_idx)

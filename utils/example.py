@@ -1,6 +1,5 @@
 #coding=utf8
-import json, random
-import numpy as np
+import json, random, torch
 from torch.utils.data import Dataset
 from itertools import chain
 from nsts.transition_system import TransitionSystem, CONFIG_PATHS
@@ -26,7 +25,7 @@ class SQLDataset(Dataset):
 class Example():
 
     @classmethod
-    def configuration(cls, dataset, plm=None, encode_method='none', decode_method='ast',
+    def configuration(cls, dataset, plm=None, encode_method='rgatsql', decode_method='ast',
             table_path=None, db_dir=None):
         cls.dataset, cls.plm = dataset, plm
         cls.encode_method, cls.decode_method = encode_method, decode_method
@@ -39,6 +38,9 @@ class Example():
         cls.processor = PreProcessor(cls.tokenizer, db_dir, cls.encode_method)
         table_list = json.load(open(table_path, 'r'))
         cls.tables = {db['db_id']: db if 'table_id' in db else cls.processor.preprocess_database(db) for db in table_list}
+        if cls.encode_method != 'none':
+            for db_id in cls.tables:
+                cls.tables[db_id]['relation'] = torch.tensor(cls.tables[db_id]['relation'], dtype=torch.long)
 
 
     @classmethod
@@ -65,7 +67,8 @@ class Example():
             else: # single-turn dataset
                 db = cls.tables[ex['db_id']]
                 if choice == 'train' and len(db['column_names']) > 100: continue # skip large dataset
-                if 'question_id' not in ex: ex = cls.processor.pipeline(ex, db)
+                if 'question_id' not in ex:
+                    ex = cls.processor.pipeline(ex, db)
                 examples.append(cls(ex, db))
                 if DEBUG and len(examples) >= 100: break
 
@@ -86,6 +89,7 @@ class Example():
 
         self.question_id = ex['question_id']
         self.question_len = len(self.question_id)
+        self.separator_pos = ex.get('separator_pos', [self.question_len])
         self.table_token_len = db['table_token_len']
         column_toks = [
             token_ids + ex['value_id'][str(cid)] if str(cid) in ex['value_id'] else token_ids
@@ -111,7 +115,7 @@ class Example():
             self.select_copy_mask = [1] * self.question_len + [0] * self.schema_len
             self.select_schema_mask = [0] * self.question_len + [1] * self.schema_len
             self.copy_id = self.question_id
-            self.encoder_relation = [] # TODO
+            self.encoder_relation = (torch.tensor(ex['schema_linking'][0], dtype=torch.long), torch.tensor(ex['schema_linking'][1], dtype=torch.long))
 
         # labeled outputs
         self.query, self.ast, self.action, self.decoder_relation = '', None, [], []

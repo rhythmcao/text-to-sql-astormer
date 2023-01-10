@@ -13,7 +13,7 @@ CONFIG_PATHS = {
     'grammar': 'nsts/sql_grammar.txt',
     'plm_dir': 'pretrained_models',
     'spider': {
-        'train': 'data/spider/train_spider.json',
+        'train': 'data/spider/train.json',
         'dev': 'data/spider/dev.json',
         'tables': 'data/spider/tables.json',
         'db_dir': 'data/spider/database',

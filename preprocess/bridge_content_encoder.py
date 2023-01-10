@@ -13,7 +13,7 @@ from rapidfuzz import fuzz
 import sqlite3
 import functools
 
-MAX_CELL_NUM = 2
+MAX_CELL_NUM = 4
 
 # fmt: off
 _stopwords = {'who', 'ourselves', 'down', 'only', 'were', 'him', 'at', "weren't", 'has', 'few', "it's", 'm', 'again',

@@ -5,15 +5,15 @@ device=0
 ddp='' # --ddp
 
 plm=roberta-base
-encode_method=none
-encoder_hidden_size=256
+encode_method=rgatsql
+encoder_hidden_size=512
 encoder_num_layers=8
 num_heads=8
 
 decode_method=ast
 decode_order=dfs+l2r
 decoder_cell=transformer
-decoder_hidden_size=768
+decoder_hidden_size=512
 decoder_num_layers=1
 
 dropout=0.2

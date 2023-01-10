@@ -8,6 +8,7 @@ from typing import List, Dict
 # relations: type_1-type_2-relation_name, r in relation_name represents reverse edge, b represents bidirectional edge
 MAX_RELATIVE_DIST = 4
 ENCODER_RELATIONS = ['padding-padding'] + [f'question-question-dist{i:d}' for i in range(- MAX_RELATIVE_DIST, MAX_RELATIVE_DIST + 1)] + \
+    [f'question-question-previous', f'question-question-after'] + \
     ['table-table-identity', 'table-table-fk', 'table-table-fkr', 'table-table-fkb'] + \
     ['column-column-identity', 'column-column-sametable', 'column-column-fk', 'column-column-fkr'] + \
     ['table-column-pk', 'column-table-pk', 'table-column-has', 'column-table-has'] + \

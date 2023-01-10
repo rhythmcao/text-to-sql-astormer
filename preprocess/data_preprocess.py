@@ -11,7 +11,7 @@ def process_tables(processor: PreProcessor, tables_list: List[dict], output_path
     tables = []
     for each in tables_list:
         print('*************** Processing database %s **************' % (each['db_id']))
-        tables.append(processor.preprocess_database(each, verbose))
+        tables.append(processor.preprocess_database(each))
     print('In total, process %d databases .' % (len(tables)))
     if output_path is not None:
         json.dump(tables, open(output_path, 'w'), ensure_ascii=False, indent=4)
@@ -21,6 +21,7 @@ def process_tables(processor: PreProcessor, tables_list: List[dict], output_path
 def process_dataset_input(processor: PreProcessor, dataset: List[dict], tables: List[dict], output_path: str = None, skip_large: bool = False, verbose: bool = False):
     processed_dataset = []
     tables = {db['db_id']: db for db in tables}
+    processor.clear_statistics()
     for idx, entry in enumerate(dataset):
         db_id = entry['db_id'] if 'db_id' in entry else entry['database_id']
         if skip_large and len(tables[db_id]['column_names']) > 100: continue
@@ -30,9 +31,10 @@ def process_dataset_input(processor: PreProcessor, dataset: List[dict], tables: 
         # tokenize question, perform schema linking and value linking
         entry = processor.pipeline(entry, tables[db_id], verbose=verbose)
         processed_dataset.append(entry)
-    
-    print('Table: partial match %d ; exact match %d' % (processor.table_pmatch, processor.table_ematch))
-    print('Column: partial match %d ; exact match %d ; value match %d' % (processor.column_pmatch, processor.column_ematch, processor.column_vmatch))
+
+    print('Table: partial match %d ; exact match %d' % (processor.matches['table']['partial'], processor.matches['table']['exact']))
+    print('Column: partial match %d ; exact match %d ; value match %d' % (processor.matches['column']['partial'], processor.matches['column']['exact'], processor.matches['column']['value']))
+    print('Bridge count: %d' % (processor.bridge_value))
     print('In total, process %d samples , skip %d extremely large databases.' % (len(processed_dataset), len(dataset) - len(processed_dataset)))
 
     if output_path is not None: # serialize preprocessed dataset
