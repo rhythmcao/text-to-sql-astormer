@@ -21,7 +21,7 @@ class EncoderInputLayer(nn.Module):
             self.question_rnn = nn.LSTM(config.hidden_size, args.encoder_hidden_size // 2, num_layers=1, bidirectional=True, batch_first=True)
             self.schema_rnn = nn.LSTM(config.hidden_size, args.encoder_hidden_size // 2, num_layers=1, bidirectional=True, batch_first=True)
             self.dropout_layer = nn.Dropout(p=args.dropout)
-        else: args.encoder_hidden_size, args.encoder_num_layers = config.hidden_size, 0
+        else: args.encoder_hidden_size = config.hidden_size
 
 
     def forward(self, batch):

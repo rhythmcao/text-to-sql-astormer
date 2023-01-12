@@ -143,7 +143,11 @@ class NoneHiddenLayer(nn.Module):
     """
     def __init__(self, args, tranx):
         super(NoneHiddenLayer, self).__init__()
+        self.hidden_size = args.encoder_hidden_size
+        self.num_layers, self.num_heads = args.encoder_num_layers, args.num_heads
+        encoder_layer = nn.TransformerEncoderLayer(self.hidden_size, self.num_heads, self.hidden_size * 4, dropout=args.dropout)
+        self.encoder_layers = nn.TransformerEncoder(encoder_layer, self.num_layers)
 
 
     def forward(self, inputs, batch):
-        return inputs
+        return self.encoder_layers(inputs.transpose(0, 1), src_key_padding_mask=~ batch.mask).transpose(0, 1)

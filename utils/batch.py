@@ -41,15 +41,7 @@ def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
     batch.plm_schema_mask = torch.tensor(plm_schema_mask, dtype=torch.bool, device=device)
 
     # for decoder memories
-    if encode_method == 'none':
-        batch.mask = batch.inputs["attention_mask"].bool()
-        batch.select_schema_mask = batch.plm_schema_mask
-        batch.select_copy_mask = torch.tensor([ex.select_copy_mask + [0] * (max_len - len(ex.input_id)) for ex in ex_list], dtype=torch.bool, device=device)
-        copy_lens = torch.tensor([len(ex.copy_id) for ex in ex_list], dtype=torch.long)
-        batch.copy_mask = lens2mask(copy_lens).to(device)
-        max_copy_len = batch.copy_mask.size(-1)
-        batch.copy_ids = torch.tensor([ex.copy_id + [pad_idx] * (max_copy_len - len(ex.copy_id)) for ex in ex_list], dtype=torch.long, device=device)
-    else:
+    if encode_method == 'rgatsql':
         batch.question_lens = torch.tensor([ex.question_len for ex in ex_list], dtype=torch.long, device=device)
         batch.mask = lens2mask(batch.question_lens + batch.schema_lens)
         max_len = batch.mask.size(-1)
@@ -68,6 +60,14 @@ def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
                 ), (0, max_len - len(ex.select_schema_mask), 0, max_len - len(ex.select_schema_mask)), value=pad_idx) for ex in ex_list
         ], dim=0).to(device)
         batch.encoder_relations_mask = batch.encoder_relations == pad_idx
+    else:
+        batch.mask = batch.inputs["attention_mask"].bool()
+        batch.select_schema_mask = batch.plm_schema_mask
+        batch.select_copy_mask = torch.tensor([ex.select_copy_mask + [0] * (max_len - len(ex.input_id)) for ex in ex_list], dtype=torch.bool, device=device)
+        copy_lens = torch.tensor([len(ex.copy_id) for ex in ex_list], dtype=torch.long)
+        batch.copy_mask = lens2mask(copy_lens).to(device)
+        max_copy_len = batch.copy_mask.size(-1)
+        batch.copy_ids = torch.tensor([ex.copy_id + [pad_idx] * (max_copy_len - len(ex.copy_id)) for ex in ex_list], dtype=torch.long, device=device)
     return batch
 
 
