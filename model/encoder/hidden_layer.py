@@ -19,7 +19,7 @@ class RGATHiddenLayer(nn.Module):
         self.relation_embed_v = nn.Embedding(rn, hs // hd, padding_idx=pad_idx)
         gnn_module = Registrable.by_name('rgat_layer')(hs, hd, dropout=args.dropout)
         self.gnn_layers = clones(gnn_module, self.num_layers)
-        
+
 
     def forward(self, inputs, batch):
         """ Jointly encode question nodes and ontology nodes via Relational Graph Attention Network
@@ -45,7 +45,9 @@ class RGATLayer(nn.Module):
         super(RGATLayer, self).__init__()
         assert hidden_size % num_heads == 0, 'Hidden size is not divisible by num of heads'
         self.hidden_size, self.num_heads = hidden_size, num_heads
-        self.qkv = nn.Linear(self.hidden_size, self.hidden_size * 3)
+        self.query = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.key = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        self.value = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.scale_factor = math.sqrt(self.hidden_size // self.num_heads)
         self.concat_affine = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.feedforward = FFN(self.hidden_size)
@@ -57,7 +59,9 @@ class RGATLayer(nn.Module):
 
         def calculate_outputs(inputs, mask):
             bs, l = inputs.size(0), inputs.size(1)
-            q, k, v = torch.chunk(self.qkv(self.dropout_layer(inputs)), 3, dim=-1)
+            q = self.query(self.dropout_layer(inputs))
+            k = self.key(self.dropout_layer(inputs))
+            v = self.value(self.dropout_layer(inputs))
             q = q.view(bs, l, self.num_heads, -1).transpose(1, 2).unsqueeze(3) # q: bsize x num_heads x seqlen x 1 x dim
             # k and v: bsize x num_heads x seqlen x seqlen x dim
             k = k.view(bs, l, self.num_heads, -1).transpose(1, 2).unsqueeze(2).expand(bs, self.num_heads, l, l, -1)
@@ -100,7 +104,9 @@ class IRNetLayer(nn.Module):
         super(IRNetLayer, self).__init__()
         assert hidden_size % num_heads == 0, 'Hidden size is not divisible by num of heads'
         self.hidden_size, self.num_heads = hidden_size, num_heads
-        self.qkv = nn.Linear(self.hidden_size, self.hidden_size * 3)
+        self.query = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
+        self.key = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        self.value = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.scale_factor = math.sqrt(self.hidden_size // self.num_heads)
         self.concat_affine = nn.Linear(self.hidden_size, self.hidden_size, bias=True)
         self.feedforward = FFN(self.hidden_size)
@@ -115,7 +121,9 @@ class IRNetLayer(nn.Module):
         def calculate_outputs(inputs, mask):
             bsize, seqlen = inputs.size(0), inputs.size(1)
             # bsize x num_heads x seqlen x dim
-            q, k, v = torch.chunk(self.qkv(self.dropout_layer(inputs).view(bsize, seqlen, self.num_heads, -1).transpose(1, 2)), 3, dim=-1)
+            q = self.query(self.dropout_layer(inputs)).view(bsize, seqlen, self.num_heads, -1).transpose(1, 2)
+            k = self.key(self.dropout_layer(inputs)).view(bsize, seqlen, self.num_heads, -1).transpose(1, 2)
+            v = self.value(self.dropout_layer(inputs)).view(bsize, seqlen, self.num_heads, -1).transpose(1, 2)
             # e: bsize x num_heads x seqlen x seqlen
             e = (torch.matmul(q, k.transpose(-1, -2)) / self.scale_factor)
             e = e.masked_fill_(mask.unsqueeze(1), -1e20) # mask padding-relation

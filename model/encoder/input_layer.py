@@ -19,7 +19,8 @@ class EncoderInputLayer(nn.Module):
         if self.encode_method != 'none':
             # use RNN to encode context information and compress schema tokens into a single node
             self.question_rnn = nn.LSTM(config.hidden_size, args.encoder_hidden_size // 2, num_layers=1, bidirectional=True, batch_first=True)
-            self.schema_rnn = self.question_rnn # parameter sharing
+            self.schema_rnn = nn.LSTM(config.hidden_size, args.encoder_hidden_size // 2, num_layers=1, bidirectional=True, batch_first=True)
+            self.dropout_layer = nn.Dropout(p=args.dropout)
         else: args.encoder_hidden_size, args.encoder_num_layers = config.hidden_size, 0
 
 
@@ -40,12 +41,12 @@ class EncoderInputLayer(nn.Module):
             # further encode PLM outputs with RNN, question tokens obtain contextual information, schema items are each compressed into one single node
             plm_question_outputs = outputs.masked_select(batch.plm_question_mask.unsqueeze(-1))
             question_outputs = outputs.new_zeros((batch.question_mask.size(0), batch.question_mask.size(1), outputs.size(-1))).masked_scatter_(batch.question_mask.unsqueeze(-1), plm_question_outputs)
-            question_outputs, _ = rnn_wrapper(self.question_rnn, question_outputs, batch.question_lens)
+            question_outputs, _ = rnn_wrapper(self.question_rnn, self.dropout_layer(question_outputs), batch.question_lens)
             question_outputs = question_outputs.view(-1, question_outputs.size(-1))[batch.question_mask.view(-1)]
 
             plm_schema_outputs = outputs.masked_select(batch.plm_schema_mask.unsqueeze(-1))
             schema_outputs = outputs.new_zeros((batch.schema_token_mask.size(0), batch.schema_token_mask.size(1), outputs.size(-1))).masked_scatter_(batch.schema_token_mask.unsqueeze(-1), plm_schema_outputs)
-            _, hiddens = rnn_wrapper(self.schema_rnn, schema_outputs, batch.schema_token_lens)
+            _, hiddens = rnn_wrapper(self.schema_rnn, self.dropout_layer(schema_outputs), batch.schema_token_lens)
             schema_outputs = hiddens[0].transpose(0, 1).contiguous().view(-1, question_outputs.size(-1))
 
             outputs = []

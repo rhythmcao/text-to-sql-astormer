@@ -7,7 +7,7 @@ from nsts.relation_utils import ASTRelation
 
 
 class Astormer(nn.Module):
-    
+
     def __init__(self, hidden_size, num_layers=1, num_heads=8, dropout=0.) -> None:
         super(Astormer, self).__init__()
         self.hidden_size, self.num_heads = hidden_size, num_heads
@@ -49,11 +49,14 @@ class AstormerLayer(nn.Module):
         self.hidden_size, self.num_heads = hidden_size, num_heads
         self.scale_factor = math.sqrt(self.hidden_size // self.num_heads)
         self.dropout_layer = nn.Dropout(p=dropout)
-        self.self_qkv_affine = nn.Linear(self.hidden_size, self.hidden_size * 3)
+        self.self_q_affine = nn.Linear(self.hidden_size, self.hidden_size)
+        self.self_k_affine = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        self.self_v_affine = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.self_o_affine = nn.Linear(self.hidden_size, self.hidden_size)
         self.self_layer_norm = nn.LayerNorm(self.hidden_size)
         self.cross_q_affine = nn.Linear(self.hidden_size, self.hidden_size)
-        self.cross_kv_affine = nn.Linear(self.hidden_size, self.hidden_size * 2)
+        self.cross_k_affine = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+        self.cross_v_affine = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
         self.cross_o_affine = nn.Linear(self.hidden_size, self.hidden_size)
         self.cross_layer_norm = nn.LayerNorm(self.hidden_size)
         self.feedforward = FFN(self.hidden_size)
@@ -71,7 +74,9 @@ class AstormerLayer(nn.Module):
         def calculate_self_attention_with_relation(q):
             bs, l = q.size(0), q.size(1)
             # bs x head x l x dim
-            Q, K, V = self.self_qkv_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1).transpose(1, 2).chunk(3, dim=-1)
+            Q = self.self_q_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1).transpose(1, 2)
+            K = self.self_k_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1).transpose(1, 2)
+            V = self.self_v_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1).transpose(1, 2)
             K = K.unsqueeze(2).expand(bs, self.num_heads, l, l, -1) # bs x head x l x l x dim
             V = V.unsqueeze(2).expand(bs, self.num_heads, l, l, -1)
             K_rel, V_rel = K + rel_k, V + rel_v
@@ -85,16 +90,19 @@ class AstormerLayer(nn.Module):
         def calculate_self_attention(q):
             bs, l = q.size(0), q.size(1)
             # bs x head x len x dim
-            Q, K, V = self.self_qkv_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1).chunk(3, dim=-1)
+            Q = self.self_q_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1)
+            K = self.self_k_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1)
+            V = self.self_v_affine(self.dropout_layer(q)).reshape(bs, l, self.num_heads, -1)
             e = torch.einsum('bthd,bshd->btsh', Q, K) / self.scale_factor
             e = e.masked_fill_(~ rel_mask.unsqueeze(-1), -1e10)
             a = torch.softmax(e, dim=2)
             o = torch.einsum('btsh,bshd->bthd', a, V).reshape(bs, l, -1)
-            return self.self_layer_norm(q + self.self_o_affine(o)) 
+            return self.self_layer_norm(q + self.self_o_affine(o))
 
         def calculate_cross_attention(q, kv):
             Q = self.cross_q_affine(self.dropout_layer(q)).reshape(q.size(0), q.size(1), self.num_heads, -1)
-            K, V = self.cross_kv_affine(self.dropout_layer(kv)).reshape(kv.size(0), kv.size(1), self.num_heads, -1).chunk(2, dim=-1)
+            K = self.cross_k_affine(self.dropout_layer(kv)).reshape(kv.size(0), kv.size(1), self.num_heads, -1)
+            V = self.cross_v_affine(self.dropout_layer(kv)).reshape(kv.size(0), kv.size(1), self.num_heads, -1)
             e = torch.einsum('bthd,bshd->btsh', Q, K) / self.scale_factor
             if enc_mask is not None:
                 e = e.masked_fill_(~ enc_mask.unsqueeze(1).unsqueeze(-1), -1e10)

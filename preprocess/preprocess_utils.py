@@ -238,7 +238,7 @@ class PreProcessor(object):
                 max_len = len(self.tokenizer.tokenize(sname))
                 for (start, end), phrase in index_phrase_pairs:
                     if end - start > max_len: break
-                    if phrase == sname: # over-write partial match due to sort according to length
+                    if phrase == sname or (end - start == max_len and (phrase.startswith(sname) or phrase.endswith(sname))): # over-write partial match due to sort according to length
                         qs_mat[range(start, end), sid], sq_mat[sid, range(start, end)] = qse, sqe
                         if verbose: matched_pairs['exact'].append(str((sname, sid, phrase, start, end)))
                     elif phrase in sname: #.split(' '):

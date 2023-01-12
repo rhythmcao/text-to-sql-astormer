@@ -114,7 +114,8 @@ class MultiHeadAttention(nn.Module):
         self.scale_factor = math.sqrt(self.hidden_size // self.num_heads)
         self.dropout_layer = nn.Dropout(p=dropout)
         self.W_q = nn.Linear(q_size, self.hidden_size, bias=True)
-        self.W_kv = nn.Linear(kv_size, self.hidden_size * 2, bias=False)
+        self.W_k = nn.Linear(kv_size, self.hidden_size, bias=False)
+        self.W_v = nn.Linear(kv_size, self.hidden_size, bias=False)
         self.W_o = nn.Linear(self.hidden_size, self.output_size, bias=True)
 
 
@@ -130,7 +131,8 @@ class MultiHeadAttention(nn.Module):
         if q_hiddens.dim() == 2:
             q_hiddens, remove_flag = q_hiddens.unsqueeze(1), True
         Q = self.W_q(self.dropout_layer(q_hiddens)).reshape(q_hiddens.size(0), q_hiddens.size(1), self.num_heads, -1)
-        K, V = self.W_kv(self.dropout_layer(kv_hiddens)).reshape(kv_hiddens.size(0), kv_hiddens.size(1), self.num_heads, -1).chunk(2, dim=-1)
+        K = self.W_k(self.dropout_layer(kv_hiddens)).reshape(kv_hiddens.size(0), kv_hiddens.size(1), self.num_heads, -1)
+        V = self.W_v(self.dropout_layer(kv_hiddens)).reshape(kv_hiddens.size(0), kv_hiddens.size(1), self.num_heads, -1)
         e = torch.einsum('bthd,bshd->btsh', Q, K) / self.scale_factor
         if mask is not None:
             e = e.masked_fill_(~ mask.unsqueeze(1).unsqueeze(-1), -1e10)
@@ -142,7 +144,7 @@ class MultiHeadAttention(nn.Module):
 
 
 class PointerNetwork(nn.Module):
-   
+
     def __init__(self, q_size, k_size, hidden_size=None, num_heads=8, dropout=0.2):
         super(PointerNetwork, self).__init__()
         self.num_heads = int(num_heads)
