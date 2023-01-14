@@ -113,7 +113,7 @@ class TransitionSystem(object):
         from nsts.value_processor import ValueProcessor
         self.db_dir = CONFIG_PATHS[dataset]['db_dir'] if db_dir is None else db_dir
         self.value_processor = ValueProcessor(self.tokenizer, self.db_dir, eov_token=eov_token)
-        
+
         from nsts.parse_json_to_ast import ASTParser
         self.ast_parser = ASTParser(self.grammar, self.value_processor)
         from nsts.parse_sql_to_json import JsonParser

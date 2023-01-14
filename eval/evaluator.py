@@ -191,7 +191,7 @@ class Evaluator():
                     pred, flag = self.tranx.unparse_sql_from_ast(hyp.tree, dataset[eid].db, dataset[eid].ex)
                 else:
                     pred, flag = self.tranx.unparse_sql_from_seq(hyp.action, dataset[eid].db, dataset[eid].ex)
-                
+
                 if not execution_guided: # not execution guided, directly return top of beam prediction
                     pred_sqls.append(pred)
                     break

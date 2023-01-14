@@ -27,10 +27,10 @@ def is_int(s):
 
 def extract_raw_question_span(s: str, q: str):
     """ During postprocessing, if the SQL value happen to appear in the raw question,
-    instead of the tokenized version which may be wrong due to tokenization error (e.g. `bob @ example . org` ).
+    instead of the tokenized lowercased version which may be wrong due to tokenization error (e.g. `bob @ example . org` ).
     Notice that q should be cased version, and if ignore whitespaces, s should occur in q.lower()
     """
-    q = re.sub(r'\s+', ' ', q)
+    if s in q: return s
     if s in q.lower(): # preserve upper/lower case
         start_id = q.lower().index(s)
         return q[start_id: start_id + len(s)]
@@ -52,11 +52,11 @@ def try_fuzzy_matching(raw_value: str, cell_values: List[str], question: str, sc
         matched_value, matched_score = process.extractOne(raw_value, cell_values)
         if matched_score >= score: value = matched_value
         else: value = extract_raw_question_span(raw_value, question)
-    return value.strip()
+    return value
 
 
 class ValueProcessor():
-    
+
     def __init__(self, tokenizer, db_dir: str = None, eov_token: str = '[SEP]') -> None:
         super(ValueProcessor, self).__init__()
         self.tokenizer, self.db_dir = tokenizer, db_dir
@@ -75,7 +75,7 @@ class ValueProcessor():
         table_name = db['table_names_original'][table_id]
         cursor = conn.execute("SELECT DISTINCT \"%s\" FROM \"%s\";" % (column_name, table_name))
         cell_values = cursor.fetchall()
-        cell_values = [each[0] for each in cell_values if str(each[0]).strip().lower() not in ['', 'null', 'none']]
+        cell_values = [each[0] for each in cell_values if str(each[0]).strip() != '']
         conn.close()
         return cell_values
 
@@ -114,7 +114,7 @@ class ValueProcessor():
             # for lowercased BERT/ELECTRA series autoencoder PLM which use WordPiece tokenzier
             # need to recover the case information and pay attention to whitespaces according to the DB or input question
             if not like_op and (col_type == 'number' or agg_op in ['count', 'sum', 'avg']):
-                raw_val = re.sub(r'[,\s"\']+', '', raw_val) # remove redundant whitespaces
+                raw_val = re.sub(r'[,\s"\']+', '', raw_val) # deal with numbers
                 value = str(int(float(raw_val))) if is_int(raw_val) and not raw_val.startswith('0') else str(raw_val)
             elif not like_op and col_type == 'time': # remove whitespaces before and after hyphen - , : or /
                 value = re.sub(r'\s*(-|:|/)\s*', lambda match: match.group(1), raw_val).strip()
