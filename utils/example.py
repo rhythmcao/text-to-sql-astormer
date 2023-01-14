@@ -38,7 +38,7 @@ class Example():
         cls.processor = PreProcessor(cls.tokenizer, db_dir, cls.encode_method)
         table_list = json.load(open(table_path, 'r'))
         cls.tables = {db['db_id']: db if 'table_id' in db else cls.processor.preprocess_database(db) for db in table_list}
-        if cls.encode_method != 'none':
+        if cls.encode_method == 'rgatsql':
             for db_id in cls.tables:
                 cls.tables[db_id]['relation'] = torch.tensor(cls.tables[db_id]['relation'], dtype=torch.long)
 
@@ -106,16 +106,16 @@ class Example():
         self.plm_question_mask = [0] + [1] * self.question_len + [0] * (len(self.schema_id) + 2)
         self.plm_schema_mask = [0] * (self.question_len + 2) + [1] * len(self.schema_id) + [0]
 
-        if Example.encode_method == 'none': # directly use the outputs from PLM, copy_id include BRIDGE cell values
-            self.select_copy_mask = [0] + [1] * self.question_len + [0] * (len(db['table_id']) + 1) + \
-                sum([[0] * (len(token_ids) + 1) + [1] * (len(ex['value_id'][str(cid)]) - 1) if str(cid) in ex['value_id'] else [0] * len(token_ids) for cid, token_ids in enumerate(db['column_token_id'])], []) + [0]
-            self.select_schema_mask = self.plm_schema_mask
-            self.copy_id = self.question_id + sum([ex['value_id'][str(cid)][1:] if str(cid) in ex['value_id'] else [] for cid in range(len(db['column_names']))], [])
-        else:
+        if Example.encode_method == 'rgatsql':
             self.select_copy_mask = [1] * self.question_len + [0] * self.schema_len
             self.select_schema_mask = [0] * self.question_len + [1] * self.schema_len
             self.copy_id = self.question_id
             self.encoder_relation = (torch.tensor(ex['schema_linking'][0], dtype=torch.long), torch.tensor(ex['schema_linking'][1], dtype=torch.long))
+        else: # directly use the outputs from PLM, copy_id include BRIDGE cell values
+            self.select_copy_mask = [0] + [1] * self.question_len + [0] * (len(db['table_id']) + 1) + \
+                sum([[0] * (len(token_ids) + 1) + [1] * (len(ex['value_id'][str(cid)]) - 1) if str(cid) in ex['value_id'] else [0] * len(token_ids) for cid, token_ids in enumerate(db['column_token_id'])], []) + [0]
+            self.select_schema_mask = self.plm_schema_mask
+            self.copy_id = self.question_id + sum([ex['value_id'][str(cid)][1:] if str(cid) in ex['value_id'] else [] for cid in range(len(db['column_names']))], [])
 
         # labeled outputs
         self.query, self.ast, self.action, self.decoder_relation = '', None, [], []

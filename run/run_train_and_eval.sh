@@ -1,13 +1,13 @@
 task=astormer
-dataset=spider
+dataset=$1
 seed=999
 device=0
-ddp='' # --ddp
+ddp='--ddp' # --ddp
 
 plm=roberta-base
 encode_method=rgatsql
 encoder_hidden_size=512
-encoder_num_layers=8
+encoder_num_layers=$2
 num_heads=8
 
 decode_method=ast

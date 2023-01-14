@@ -1,6 +1,6 @@
 #coding=utf8
 import numpy as np
-import os, re, sqlite3, string, torch
+import os, re, sqlite3, string, stanza, torch
 from typing import List, Tuple
 from nltk.corpus import stopwords
 from itertools import product, combinations
@@ -45,6 +45,8 @@ class PreProcessor(object):
         super(PreProcessor, self).__init__()
         self.tokenizer, self.db_dir, self.encode_method = tokenizer, db_dir, encode_method
         self.stopwords = set(stopwords.words("english")) - {'no'}
+        use_gpu = torch.cuda.is_available()
+        self.nlp = stanza.Pipeline('en', processors='tokenize,pos,lemma', use_gpu=False)
         self.matches = {'table': {'partial': 0, 'exact': 0}, 'column': {'partial': 0, 'exact': 0, 'value': 0}}
         self.db_content, self.bridge_value = db_content, 0
 
@@ -81,13 +83,15 @@ class PreProcessor(object):
         ]
         db['table_token_len'] = [len(toks) for toks in table_ids]
         db['table_id'] = sum(table_ids, []) # flatten all content
+        db['table_toks'] = [[w.lemma.lower() for s in self.nlp(name).sentences for w in s.words] for name in db['table_names']]
 
         column_ids = [
-            self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(db['column_types'][cid])) + 
+            self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(db['column_types'][cid])) +
             self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(db['column_names'][cid][1]))
             for cid in range(len(db['column_names']))
         ]
         db['column_token_id'] = column_ids # need to add instance-specific BRIDGE cells
+        db['column_toks'] = [[w.lemma.lower() for s in self.nlp(name).sentences for w in s.words] for _, name in db['column_names']]
 
         column2table = list(map(lambda x: x[0], db['column_names'])) # from column id to table id
         table2columns = [[] for _ in range(len(db['table_names']))] # from table id to column ids list
@@ -206,6 +210,7 @@ class PreProcessor(object):
         """
         dtype = np.int64
         table_names, column_names = [t.lower() for t in db['table_names']], [c.lower() for _, c in db['column_names']]
+        table_toks, column_toks = db['table_toks'], db['column_toks']
 
         def normalize_toks(toks):
             return self.tokenizer.convert_tokens_to_string(toks).lower().strip()
@@ -221,7 +226,7 @@ class PreProcessor(object):
             return list(filter(lambda x: x[1] not in self.stopwords and x[1] not in string.punctuation, index_phrase_pairs))
 
 
-        def question_schema_matching(index_phrase_pairs, schema_names, category, matching_infos=None):
+        def question_schema_matching(index_phrase_pairs, schema_names, schema_toks, category, matching_infos=None):
             assert category in ['table', 'column']
             if len(matching_infos) == 3: qs_mat, sq_mat, matched_pairs = matching_infos
             else:
@@ -236,12 +241,13 @@ class PreProcessor(object):
             for sid, sname in enumerate(schema_names):
                 if category == 'column' and sid == 0: continue
                 max_len = len(self.tokenizer.tokenize(sname))
+                sname_toks = schema_toks[sid]
                 for (start, end), phrase in index_phrase_pairs:
                     if end - start > max_len: break
-                    if phrase == sname or (end - start == max_len and (phrase.startswith(sname) or phrase.endswith(sname))): # over-write partial match due to sort according to length
+                    if phrase == sname or (sname in phrase and len(sname) >= 2 * len(phrase) / 3): # over-write partial match due to sort according to length
                         qs_mat[range(start, end), sid], sq_mat[sid, range(start, end)] = qse, sqe
                         if verbose: matched_pairs['exact'].append(str((sname, sid, phrase, start, end)))
-                    elif phrase in sname: #.split(' '):
+                    elif phrase in sname.split(' ') or phrase in sname_toks:
                         qs_mat[range(start, end), sid], sq_mat[sid, range(start, end)] = qsp, sqp
                         if verbose: matched_pairs['partial'].append(str((sname, sid, phrase, start, end)))
             return qs_mat, sq_mat, matched_pairs
@@ -291,7 +297,7 @@ class PreProcessor(object):
                     if is_text or (not is_text and c in question):
                         toks = self.tokenizer.tokenize(c)
                         l, c = len(toks), normalize_toks(toks)
-                        for (start, end), phrase in filter(lambda x: l - 4 <= x[0][1] - x[0][0] <= l, index_span_pairs):
+                        for (start, end), phrase in filter(lambda x: l - 2 <= x[0][1] - x[0][0] <= l + 2, index_span_pairs):
                             if phrase in c:
                                 qc_mat[range(start, end), cid], cq_mat[cid, range(start, end)] = qcv, cqv
                                 if verbose: matched_pairs['value'].append(str((column_names[cid], cid, phrase, start, end)))
@@ -321,11 +327,11 @@ class PreProcessor(object):
             for turn in entry['interaction']:
                 question, question_toks, q_num = turn['utterance'].lower(), turn['utterance_toks'], len(turn['utterance_toks'])
                 index_span_pairs = extract_index_phrase_pairs(question_toks)
-                q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(index_span_pairs, table_names, 'table',
+                q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(index_span_pairs, table_names, table_toks, 'table',
                     matching_infos=(q_num, t_num))
                 q_col_mat, col_q_mat, column_matched_pairs = question_cell_matching(index_span_pairs, question, cell_values, turn['value'],
                     matching_infos=(q_num, c_num))
-                q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(index_span_pairs, column_names, 'column',
+                q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(index_span_pairs, column_names, column_toks, 'column',
                     matching_infos=(q_col_mat, col_q_mat, column_matched_pairs))
                 q_schema = np.concatenate([q_tab_mat, q_col_mat], axis=1)
                 schema_q = np.concatenate([tab_q_mat, col_q_mat], axis=0)
@@ -340,12 +346,12 @@ class PreProcessor(object):
         else:
             question, question_toks, q_num = entry['question'].lower(), entry['question_toks'], len(entry['question_toks'])
             index_span_pairs = extract_index_phrase_pairs(question_toks)
-            q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(index_span_pairs, table_names, 'table',
+            q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(index_span_pairs, table_names, table_toks, 'table',
                 matching_infos=(q_num, len(table_names)))
             cell_values = extract_nontext_cell_values(db)
             q_col_mat, col_q_mat, column_matched_pairs = question_cell_matching(index_span_pairs, question, cell_values, entry['value'],
                 matching_infos=(q_num, len(column_names)))
-            q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(index_span_pairs, column_names, 'column',
+            q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(index_span_pairs, column_names, column_toks, 'column',
                 matching_infos=(q_col_mat, col_q_mat, column_matched_pairs))
             q_schema = np.concatenate([q_tab_mat, q_col_mat], axis=1)
             schema_q = np.concatenate([tab_q_mat, col_q_mat], axis=0)

@@ -77,7 +77,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
 
         if decode_method == 'ast':
             # action_ids, production_ids, field_ids, depth_ids, decoder_relations
-            action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order) 
+            action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order)
                 if decode_order != 'dfs+l2r' else (ex.action, ex.decoder_relation) for ex in ex_list]))
             max_action_num = max([len(action) for action in action_infos_list])
             vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.grammar.prod2id) + 1
@@ -110,7 +110,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             # remember to minus 1 due to the shifted input operation
             batch.tgt_mask = lens2mask(torch.tensor([len(actions) - 1 for actions in seq_actions], dtype=torch.long)).to(device)
     else:
-        batch.max_action_num = 120
+        batch.max_action_num = 150
         batch.database = [{'table': len(ex.db['table_names']), 'column': len(ex.db['column_names'])} for ex in ex_list]
     return batch
 
