@@ -62,7 +62,9 @@ class Example():
                     ex = cls.processor.pipeline(ex, db)
                 for turn in ex['interaction']:
                     turn['db_id'] = db['db_id']
-                    examples.append(cls(turn, db, idx))
+                    cur_ex = cls(turn, db, idx)
+                    if choice == 'train' and len(cur_ex.input_id) > 430: continue
+                    examples.append(cur_ex)
                 if DEBUG and len(examples) >= 100: break
             else: # single-turn dataset
                 db = cls.tables[ex['db_id']]
