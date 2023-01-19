@@ -1,26 +1,26 @@
-task=astormer-base
+task=astormer-large
 dataset=$1
 seed=999
 device=0
 ddp='--ddp' # --ddp
 
-plm=bert-base-uncased
+plm=bert-large-uncased-whole-word-masking #electra-large-discriminator
 encode_method=rgatsql
 encoder_hidden_size=512
-encoder_num_layers=8
+encoder_num_layers=2
 num_heads=8
 
 decode_method=ast
 decode_order=dfs+l2r
-decoder_cell=transformer
+decoder_cell=lstm
 decoder_hidden_size=512
-decoder_num_layers=$2
+decoder_num_layers=2
 
 dropout=0.2
 batch_size=20
 test_batch_size=50
 grad_accumulate=2
-lr=2e-4
+lr=1e-4
 l2=0.1
 layerwise_decay=0.8
 warmup_ratio=0.1

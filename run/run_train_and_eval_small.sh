@@ -1,32 +1,36 @@
-task=astormer-base
+task=small-ablation-RPE-size-16
 dataset=$1
 seed=999
 device=0
-ddp='--ddp' # --ddp
+ddp='' # --ddp
 
-plm=bert-base-uncased
+plm=electra-small-discriminator
 encode_method=rgatsql
-encoder_hidden_size=512
+encoder_hidden_size=256
 encoder_num_layers=8
 num_heads=8
 
 decode_method=ast
 decode_order=dfs+l2r
 decoder_cell=transformer
-decoder_hidden_size=512
-decoder_num_layers=$2
+decoder_hidden_size=256
+decoder_num_layers=2
 
 dropout=0.2
 batch_size=20
 test_batch_size=50
-grad_accumulate=2
-lr=2e-4
+if [ "$1" = "cosql"  ] ; then
+    grad_accumulate=4
+else
+    grad_accumulate=2
+fi
+lr=4e-4
 l2=0.1
 layerwise_decay=0.8
 warmup_ratio=0.1
 lr_schedule=linear
-eval_after_iter=60
-max_iter=100
+eval_after_iter=30
+max_iter=50
 max_norm=5
 beam_size=5
 n_best=5

@@ -301,7 +301,7 @@ class TransitionSystem(object):
         the corresponding schema index is schema_id + vocab_size.
         """
         do_lower_case = self.tokenizer.do_lower_case if hasattr(self.tokenizer, 'do_lower_case') else False
-        assert not do_lower_case, 'The tokenizer of sequence decoder should be case-sensitive, o.w. unable to recover the upper/lower case information ...'
+        # assert not do_lower_case, 'The tokenizer of sequence decoder should be case-sensitive, o.w. unable to recover the upper/lower case information ...'
 
         # normalize the raw SQL query: parse to json and back to sql query to re-use the SQL-to-json parser
         if type(sql) == str:
