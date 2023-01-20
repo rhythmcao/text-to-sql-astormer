@@ -48,7 +48,7 @@ class ASTDecoder(nn.Module):
         self.switcher = nn.Sequential(nn.Linear(args.decoder_hidden_size + embed_size, 1), nn.Sigmoid())
 
 
-    def score(self, memories, batch):
+    def score(self, memories, batch, return_attention_weights=False, **kwargs):
         """ Training function for grammar-based AST decoder.
         @args:
             memories: dict stores (key, value) pairs, including `encodings` states (bs x src_len x dim), `schema` memory (bs x (table_num + column_num) x dim),
@@ -91,7 +91,9 @@ class ASTDecoder(nn.Module):
             inputs = self.input_layer_norm(inputs + current_depth)
 
             # forward into Astormer
-            outputs = self.decoder_network(self.input_affine(inputs), encodings, rel_ids=batch.decoder_relations, enc_mask=mask)
+            outputs = self.decoder_network(self.input_affine(inputs), encodings, rel_ids=batch.decoder_relations, enc_mask=mask, return_attention_weights=return_attention_weights)
+            if return_attention_weights:
+                outputs, attention_weights = outputs
 
             # action logprobs calculation
             apply_rule_logprob = self.apply_rule(outputs, self.production_embed.weight)
@@ -141,10 +143,12 @@ class ASTDecoder(nn.Module):
                 logprobs = torch.cat([logprobs, cur_logprobs], dim=1)
 
         loss = - logprobs.masked_select(batch.tgt_mask).sum()
+        if return_attention_weights:
+            return loss, attention_weights
         return loss
 
 
-    def parse(self, memories, batch, beam_size=5, n_best=5, decode_order='dfs+l2r'):
+    def parse(self, memories, batch, beam_size=5, n_best=5, decode_order='dfs+l2r', **kwargs):
         """ Decoding with beam search for grammar-based AST decoder.
         @args:
             memories: dict stores (key, value) pairs, including `encodings` states (bs x src_len x dim), `schema` memory (bs x (table_num + column_num) x dim),

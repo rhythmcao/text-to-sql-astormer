@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
-from scripts.eval_model import decode, print_ast
+from scripts.eval_model import decode, print_ast, record_heatmap
 
 
 # initialization params, output path, logger, random seed and torch.device
@@ -151,6 +151,7 @@ if not args.testing:
 # eval model on test-suite database
 if is_master:
     Example.use_database_testsuite()
+
     # logger.info("Start evaluating dev dataset on testsuite database ......")
     # start_time = time.time()
     # dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev.eval'), batch_size=args.test_batch_size,
@@ -159,14 +160,15 @@ if is_master:
     # check_point['result']['dev_em_acc'], check_point['result']['dev_ex_acc'] = dev_em_acc, dev_ex_acc
     # torch.save(check_point, open(os.path.join(exp_path, 'model.bin'), 'wb'))
 
-    logger.info('Start evaluating and printing ASTs on the dev dataset ......')
-    start_time = time.time()
-    count = print_ast(base_model, dev_dataset, os.path.join(exp_path, 'dev.ast'), beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Print {count:d} ASTs among {len(dev_dataset):d} samples ;")
-
-    # print('Start recording attention heatmaps on the dev dataset ...... ')
+    # logger.info('Start evaluating and printing ASTs on the dev dataset ......')
     # start_time = time.time()
-    # heatmaps = print_heatmap(base_model, dev_dataset, os.path.join(exp_path, 'dev.heatmaps'))
+    # count = print_ast(base_model, dev_dataset, os.path.join(exp_path, 'dev.ast'), beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+    # logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Print {count:d} ASTs among {len(dev_dataset):d} samples ;")
+
+    print('Start recording attention heatmaps on the dev dataset ...... ')
+    start_time = time.time()
+    count = record_heatmap(base_model, dev_dataset, os.path.join(exp_path, 'dev.heatmap'), batch_size=args.test_batch_size, decode_order=args.decode_order, device=device)
+    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Record {count:d} heatmaps among {len(dev_dataset):d} samples ;")
 
 
 if args.ddp:

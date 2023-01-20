@@ -38,7 +38,7 @@ class SEQDecoder(nn.Module):
         self.loss_function = nn.NLLLoss(reduction='sum', ignore_index=self.tranx.tokenizer.pad_token_id)
 
 
-    def score(self, memories, batch):
+    def score(self, memories, batch, **kwargs):
         """ Training function for token-based Sequence decoder.
         memories: dict stores (key, value) pairs, including `encodings` states (bs x src_len x dim), `schema` memory (bs x (table_num + column_num) x dim),
             `copy` memory (bs x copy_len x dim), `copy_ids` (map input to target vocab position, bs x copy_len), `generator` memory for token generation (vocab_size x dim),

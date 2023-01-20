@@ -21,7 +21,7 @@ class Astormer(nn.Module):
         self.decoder_layers = nn.ModuleList(clones(decoder_layer, self.num_layers))
 
 
-    def forward(self, q, kv, rel_ids=None, enc_mask=None):
+    def forward(self, q, kv, rel_ids=None, enc_mask=None, return_attention_weights=False):
         """ A stacked modules of Astormer layers.
         @args:
             q: query vector, bs x tgt_len x hs
@@ -38,7 +38,10 @@ class Astormer(nn.Module):
             rel_v = rel_v.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             rel_mask = (rel_ids != self.pad_idx) & rel_mask
         for i in range(self.num_layers):
-            o = self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask)
+            if i == self.num_layers - 1 and return_attention_weights:
+                return self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask)
+            else:
+                o = self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask)
         return o
 
 
@@ -62,7 +65,7 @@ class AstormerLayer(nn.Module):
         self.feedforward = FFN(self.hidden_size)
 
 
-    def forward(self, q, kv, rel_k, rel_v, rel_mask, enc_mask=None):
+    def forward(self, q, kv, rel_k, rel_v, rel_mask, enc_mask=None, return_attention_weights=False):
         """ Three modules: masked AST structure-aware multi-head self-attention, multi-head cross-attention and feedforward module.
         @args:
             q: input query vector, bs x tgt_len x hidden_size
@@ -71,6 +74,7 @@ class AstormerLayer(nn.Module):
             rel_mask: relation mask, torch.BoolTensor, bs x tgt_len x tgt_len, 0 -> padding relation, o.w. specific relations
             enc_mask: mask for input, torch.BoolTensor, bs x src_len, 0 -> padding position, o.w. used position
         """
+        attention_weights = []
         def calculate_self_attention_with_relation(q):
             bs, l = q.size(0), q.size(1)
             # bs x head x l x dim
@@ -83,6 +87,8 @@ class AstormerLayer(nn.Module):
             e = (torch.matmul(Q.unsqueeze(3), K_rel.transpose(-1, -2)) / self.scale_factor).squeeze(-2)
             e = e.masked_fill_(~ rel_mask.unsqueeze(1), -1e10) # bs x head x l x l
             a = torch.softmax(e, dim=-1)
+            if return_attention_weights:
+                attention_weights.append(a.mean(dim=1)) # take the average of attention weights from different heads
             o = torch.matmul(a.unsqueeze(-2), V_rel).squeeze(-2) # bs x head x l x dim
             o = o.transpose(1, 2).contiguous().view(bs, l, -1)
             return self.self_layer_norm(q + self.self_o_affine(o))
@@ -112,6 +118,7 @@ class AstormerLayer(nn.Module):
 
         o = calculate_self_attention_with_relation(q) if rel_k is not None else calculate_self_attention(q)
         o = calculate_cross_attention(o, kv)
+        if return_attention_weights: return self.feedforward(o), attention_weights[0] 
         return self.feedforward(o)
 
 

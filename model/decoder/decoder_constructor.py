@@ -12,9 +12,9 @@ class Decoder(nn.Module):
         self.decoder = Registrable.by_name(args.decode_method)(args, tranx)
 
 
-    def forward(self, memories, batch):
-        return self.decoder.score(memories, batch)
+    def forward(self, memories, batch, **kwargs):
+        return self.decoder.score(memories, batch, **kwargs)
 
 
-    def parse(self, memories, batch, beam_size=5, n_best=5, decode_order='dfs+l2r'):
-        return self.decoder.parse(memories, batch, beam_size, n_best, decode_order=decode_order)
+    def parse(self, memories, batch, beam_size=5, n_best=5, decode_order='dfs+l2r', **kwargs):
+        return self.decoder.parse(memories, batch, beam_size, n_best, decode_order=decode_order, **kwargs)
