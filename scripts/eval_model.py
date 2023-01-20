@@ -60,7 +60,7 @@ def record_heatmap(model, dataset, output_path=None, batch_size=64, decode_order
     assert decode_order == 'dfs+l2r' and decode_method == 'ast', "We use the default traversal order and only analyze self-attention of ASTormer."
     model.eval()
     tranx, decode_method = Example.tranx, Example.decode_method
-    eval_collate_fn = Batch.get_collate_fn(device=device, train=False)
+    eval_collate_fn = Batch.get_collate_fn(device=device, train=True, decode_order=decode_order)
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=False, collate_fn=eval_collate_fn)
 
     results, count = [], 0
@@ -69,7 +69,7 @@ def record_heatmap(model, dataset, output_path=None, batch_size=64, decode_order
             _, attention_weights = model(cur_batch, return_attention_weights=True) # use forward function instead of parse
             for idx in range(len(cur_batch)):
                 ex = cur_batch[idx]
-                if ex.ast.size > 30: continue
+                if ex.ast.size > 20: continue
                 count += 1
                 s = len(ex.action)
                 pad_idx = tranx.ast_relation.DECODER_RELATIONS.index('padding-padding')

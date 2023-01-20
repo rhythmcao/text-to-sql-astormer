@@ -38,8 +38,8 @@ class Astormer(nn.Module):
             rel_v = rel_v.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             rel_mask = (rel_ids != self.pad_idx) & rel_mask
         for i in range(self.num_layers):
-            if i == self.num_layers - 1 and return_attention_weights:
-                return self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask)
+            if i == self.num_layers - 1:
+                o = self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask, return_attention_weights)
             else:
                 o = self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask)
         return o
