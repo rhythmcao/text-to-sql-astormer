@@ -78,7 +78,7 @@ class AbstractSyntaxTree(object):
         return new_tree
 
 
-    def to_string(self, sb: StringIO = None, indent: int = 0) -> str:
+    def to_string(self, sb: StringIO = None, indent: int = 0, tables: list = None, columns: list = None, tokenizer = None) -> str:
         is_root = False
         if sb is None:
             is_root = True
@@ -96,11 +96,23 @@ class AbstractSyntaxTree(object):
                     prefix = ' ' * indent + '%s-%s := ' % (rf.type.name, rf.name)
                     sb.write(prefix)
                     if rf.value is not None:
-                        rf.value.to_string(sb, indent)
+                        rf.value.to_string(sb, indent, tables, columns, tokenizer)
                     else: sb.write('?\n')
             else: # primitive types
                 for rf in rfs:
-                    value = 'Leaf[j=%d, id=%s]' % (rf.realized_time, str(rf.value)) if rf.value is not None else '?'
+                    if rf.value is not None:
+                        if rf.type.name == 'tab_id':
+                            val = tables[int(rf.value)] if tables is not None else str(rf.value)
+                        elif rf.type.name == 'col_id':
+                            if int(rf.value) == 0: val = '*'
+                            else:
+                                tab = tables[columns[int(rf.value)][0]] + '.' if tables is not None and columns is not None else ''
+                                col = columns[int(rf.value)][1] if columns is not None else str(rf.value)
+                                val = tab + col
+                        else:
+                            val = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(rf.value)) if tokenizer is not None else str(rf.value)
+                        value = 'Leaf[j=%d, val=%s]' % (rf.realized_time, val)
+                    else: value = '?'
                     serial = ' ' * indent + '%s-%s := %s\n' % (rf.type.name, rf.name, value)
                     sb.write(serial)
 

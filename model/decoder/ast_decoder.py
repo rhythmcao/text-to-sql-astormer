@@ -144,7 +144,7 @@ class ASTDecoder(nn.Module):
         return loss
 
 
-    def parse(self, memories, batch, beam_size=5, n_best=1, decode_order='dfs+l2r'):
+    def parse(self, memories, batch, beam_size=5, n_best=5, decode_order='dfs+l2r'):
         """ Decoding with beam search for grammar-based AST decoder.
         @args:
             memories: dict stores (key, value) pairs, including `encodings` states (bs x src_len x dim), `schema` memory (bs x (table_num + column_num) x dim),

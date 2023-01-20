@@ -95,7 +95,7 @@ class SEQDecoder(nn.Module):
         return loss
 
 
-    def parse(self, memories, batch, beam_size=5, n_best=1, **kwargs):
+    def parse(self, memories, batch, beam_size=5, n_best=5, **kwargs):
         """ Decoding function for token-based Sequence decoder.
         memories: dict stores (key, value) pairs, including `encodings` states (bs x src_len x dim), `schema` memory (bs x (table_num + column_num) x dim),
             `copy` memory (bs x copy_len x dim), `copy_ids` (map input to target vocab position, bs x copy_len), `generator` memory for token generation (vocab_size x dim),

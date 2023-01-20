@@ -60,5 +60,5 @@ def add_argument_decoder(arg_parser):
     arg_parser.add_argument('--no_select_schema', action='store_true', help='Whether directly copy DB schema or generating schema tokens')
     arg_parser.add_argument('--no_copy_mechanism', action='store_true', help='Whether use copy mechanism for generating value tokens')
     arg_parser.add_argument('--beam_size', default=5, type=int, help='Beam size for beam search')
-    arg_parser.add_argument('--n_best', default=1, type=int, help='Top-k returns for beam search')
+    arg_parser.add_argument('--n_best', default=5, type=int, help='Top-k returns for beam search')
     return arg_parser

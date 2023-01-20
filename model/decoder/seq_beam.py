@@ -19,7 +19,7 @@ class SEQBeam(object):
             beam_size (int): beam size
             device (torch.device)
     """
-    def __init__(self, tranx, database, beam_size, n_best=1, device=None, top_k=0):
+    def __init__(self, tranx, database, beam_size=5, n_best=5, device=None, top_k=0):
         super(SEQBeam, self).__init__()
         self.tokenizer = tranx.tokenizer
         self.shifts = (
