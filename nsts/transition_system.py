@@ -307,7 +307,7 @@ class TransitionSystem(object):
         if type(sql) == str:
             sql = self.json_parser.parse(sql, table)
         query = self.json_unparser.unparse(sql, table)
-        if not select_schema: return [self.tokenizer.cls_token_id] + self.tokenzier.convert_tokens_to_ids(self.tokenizer.tokenize(query)) + [self.tokenizer.sep_token_id]
+        if not select_schema: return [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(query)) + [self.tokenizer.sep_token_id]
 
         tokens = query.split(' ')
         vocab_size = self.tokenizer.vocab_size
