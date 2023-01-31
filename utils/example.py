@@ -112,7 +112,7 @@ class Example():
             self.select_copy_mask = [1] * self.question_len + [0] * self.schema_len
             self.select_schema_mask = [0] * self.question_len + [1] * self.schema_len
             self.encoder_relation = (torch.tensor(ex['schema_linking'][0], dtype=torch.long), torch.tensor(ex['schema_linking'][1], dtype=torch.long))
-        else: # directly use the outputs from PLM, copy_id include BRIDGE cell values
+        else: # directly use the outputs from PLM
             self.select_copy_mask, self.select_schema_mask = self.plm_question_mask, self.plm_schema_mask
         self.copy_id = self.question_id
 
