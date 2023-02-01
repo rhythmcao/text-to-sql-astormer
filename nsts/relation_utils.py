@@ -48,15 +48,16 @@ class ASTRelation():
 
     def _construct_child_relation_mappings(self) -> Dict[int, int]:
         """ Construct a dict which maps the relation of the parent to its children, e.g.,
-        parent-child relation `0-1` -> grandparent-grandchild relation `0-2`
+        parent-child relation `1-0` -> grandparent-grandchild relation `2-0`
         """
         child_relation_mappings = {}
         for rel in self.relation2id:
-            if 'padding' in rel or 'left' in rel: continue
-            l, r = rel.split('-')
-            r = int(r)
-            new_r = r + 1 if r + 1 < ASTRelation.MAX_RELATIVE_DEPTH else ASTRelation.MAX_RELATIVE_DEPTH - 1
-            new_rel = '-'.join([l, str(new_r)])
+            if 'padding' in rel or 'left' in rel: new_rel = 'padding-padding'
+            else:
+                l, r = rel.split('-')
+                l = int(l)
+                new_l = l + 1 if l + 1 < ASTRelation.MAX_RELATIVE_DEPTH else ASTRelation.MAX_RELATIVE_DEPTH - 1
+                new_rel = '-'.join([str(new_l), r])
             child_relation_mappings[self.relation2id[rel]] = self.relation2id[new_rel]
         return child_relation_mappings
 

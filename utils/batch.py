@@ -82,6 +82,8 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             max_action_num = max([len(action) for action in action_infos_list])
             vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.grammar.prod2id) + 1
             table_nums = [len(ex.db['table_names']) for ex in ex_list]
+            ast_utils = Example.tranx.ast_relation
+            rel_pad_idx = ast_utils.relation2id['padding-padding']
 
             def get_action_id(action_info, eid):
                 if action_info.action_type == ApplyRuleAction:
@@ -93,13 +95,20 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
                 else: return action_info.action_id
 
             def get_decoder_relation(relation):
-                return F.pad(relation, (0, max_action_num - relation.size(0), 0, max_action_num - relation.size(0)), value=0)
+                return F.pad(relation, (0, max_action_num - relation.size(0), 0, max_action_num - relation.size(0)), value=rel_pad_idx)
+
+            def get_shift_decoder_relation(relation):
+                root_rels, relation = relation[:, 0].tolist(), relation[:, :-1]
+                root_rels = torch.tensor([ast_utils.child_relation_mappings[rel_id] for rel_id in root_rels], dtype=torch.long).unsqueeze(-1)
+                relation = torch.cat([root_rels, relation], dim=-1)
+                return F.pad(relation, (0, max_action_num - relation.size(0), 0, max_action_num - relation.size(0)), value=rel_pad_idx)
 
             batch.ast_actions = torch.tensor([[get_action_id(action_info, eid) for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for eid, action_infos in enumerate(action_infos_list)], dtype=torch.long, device=device)
             batch.production_ids = torch.tensor([[action_info.prod_id for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.field_ids = torch.tensor([[action_info.field_id for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.depth_ids = torch.tensor([[action_info.depth for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.decoder_relations = torch.stack([get_decoder_relation(relation) for relation in relations_list]).to(device)
+            batch.shift_decoder_relations = torch.stack([get_shift_decoder_relation(relation) for relation in relations_list]).to(device)
             batch.tgt_mask = lens2mask(torch.tensor([len(action_infos) for action_infos in action_infos_list], dtype=torch.long)).to(device)
             batch.action_infos = action_infos_list # to retrieve parent hidden state timestep, LSTM decoder
         else: # sequence decoder
