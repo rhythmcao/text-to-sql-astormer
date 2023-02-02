@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from typing import Union, List, Tuple
 from transformers import AutoTokenizer
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from nsts.asdl_ast import AbstractSyntaxTree
+from asdl.asdl_ast import AbstractSyntaxTree
 
 
 CONFIG_PATHS = {
-    'grammar': 'nsts/sql_grammar.txt',
+    'grammar': 'asdl/sql_grammar.txt',
     'plm_dir': 'pretrained_models',
     'spider': {
         'train': 'data/spider/train.json',
@@ -100,9 +100,9 @@ class TransitionSystem(object):
 
     def __init__(self, dataset: str, tokenizer: str = None, db_dir: str = None):
         super(TransitionSystem, self).__init__()
-        from nsts.asdl import ASDLGrammar
+        from asdl.asdl import ASDLGrammar
         self.grammar = ASDLGrammar.from_filepath(CONFIG_PATHS['grammar'])
-        from nsts.relation_utils import ASTRelation
+        from asdl.relation_utils import ASTRelation
         self.ast_relation = ASTRelation()
 
         tokenizer_path = os.path.join(CONFIG_PATHS['plm_dir'], tokenizer) if tokenizer is not None else os.path.join(CONFIG_PATHS['plm_dir'], 'grappa_large_jnt')
@@ -110,18 +110,18 @@ class TransitionSystem(object):
         eov_token = self.tokenizer.eos_token if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token is not None else self.tokenizer.sep_token
         GenerateTokenAction.EOV_ID = self.tokenizer.convert_tokens_to_ids(eov_token)
 
-        from nsts.value_processor import ValueProcessor
+        from asdl.value_processor import ValueProcessor
         self.db_dir = CONFIG_PATHS[dataset]['db_dir'] if db_dir is None else db_dir
         self.value_processor = ValueProcessor(self.tokenizer, self.db_dir, eov_token=eov_token)
 
-        from nsts.parse_json_to_ast import ASTParser
+        from asdl.parse_json_to_ast import ASTParser
         self.ast_parser = ASTParser(self.grammar, self.value_processor)
-        from nsts.parse_sql_to_json import JsonParser
+        from asdl.parse_sql_to_json import JsonParser
         self.json_parser = JsonParser()
 
-        from nsts.unparse_sql_from_ast import ASTUnParser
+        from asdl.unparse_sql_from_ast import ASTUnParser
         self.ast_unparser = ASTUnParser(self.grammar, self.value_processor)
-        from nsts.unparse_sql_from_json import JsonUnparser
+        from asdl.unparse_sql_from_json import JsonUnparser
         self.json_unparser = JsonUnparser()
 
 

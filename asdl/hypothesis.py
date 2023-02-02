@@ -2,9 +2,9 @@
 import torch
 from copy import deepcopy
 from typing import List, Tuple
-from nsts.asdl import ASDLCompositeType, Field
-from nsts.asdl_ast import AbstractSyntaxTree, RealizedField
-from nsts.transition_system import Action, ApplyRuleAction, GenerateTokenAction, TransitionSystem
+from asdl.asdl import ASDLCompositeType, Field
+from asdl.asdl_ast import AbstractSyntaxTree, RealizedField
+from asdl.transition_system import Action, ApplyRuleAction, GenerateTokenAction, TransitionSystem
 
 
 class Hypothesis(object):

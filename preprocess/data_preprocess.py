@@ -3,7 +3,7 @@ import os, json, argparse, sys, time
 from typing import List
 from transformers import AutoTokenizer
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from nsts.transition_system import CONFIG_PATHS
+from asdl.transition_system import CONFIG_PATHS
 from preprocess.preprocess_utils import PreProcessor
 
 

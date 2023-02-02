@@ -4,8 +4,8 @@ import torch.nn.functional as F
 from functools import partial
 from utils.example import Example, get_position_ids
 from model.model_utils import lens2mask, cached_property
-from nsts.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction
-from nsts.relation_utils import ENCODER_RELATIONS
+from asdl.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction
+from asdl.relation_utils import ENCODER_RELATIONS
 from preprocess.preprocess_utils import get_question_relation
 
 

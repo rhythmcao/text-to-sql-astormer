@@ -698,7 +698,7 @@ def parse_dataset(input_path, table_path):
 if __name__ == '__main__':
 
     import argparse
-    from nsts.transition_system import CONFIG_PATHS
+    from asdl.transition_system import CONFIG_PATHS
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql'], help='filepath to the dataset')

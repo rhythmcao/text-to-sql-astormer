@@ -2,9 +2,9 @@ task=astormer-large
 dataset=$1
 seed=999
 device=0
-ddp='--ddp' # --ddp
+ddp='' # --ddp
 
-plm=bert-large-uncased-whole-word-masking #electra-large-discriminator
+plm=electra-large-discriminator
 encode_method=rgatsql
 encoder_hidden_size=512
 encoder_num_layers=2

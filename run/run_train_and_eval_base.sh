@@ -1,8 +1,8 @@
-task=ablation-decode-cell
+task=astormer-base
 dataset=$1
 seed=999
 device=0
-ddp='--ddp' # --ddp
+ddp='' # --ddp
 
 plm=roberta-base
 encode_method=rgatsql
@@ -10,9 +10,9 @@ encoder_hidden_size=512
 encoder_num_layers=2
 num_heads=8
 
-decode_method=$2
+decode_method=ast
 decode_order=dfs+l2r
-decoder_cell=$3
+decoder_cell=transformer
 decoder_hidden_size=512
 decoder_num_layers=2
 

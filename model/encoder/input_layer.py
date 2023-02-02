@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoConfig
 from model.model_utils import rnn_wrapper
-from nsts.transition_system import CONFIG_PATHS
+from asdl.transition_system import CONFIG_PATHS
 
 
 class EncoderInputLayer(nn.Module):

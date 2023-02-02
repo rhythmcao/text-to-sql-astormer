@@ -4,7 +4,7 @@ import os, re, sqlite3, string, stanza, torch
 from typing import List, Tuple
 from nltk.corpus import stopwords
 from itertools import product, combinations
-from nsts.relation_utils import ENCODER_RELATIONS, MAX_RELATIVE_DIST
+from asdl.relation_utils import ENCODER_RELATIONS, MAX_RELATIVE_DIST
 from preprocess.bridge_content_encoder import get_database_matches
 
 
@@ -46,7 +46,7 @@ class PreProcessor(object):
         self.tokenizer, self.db_dir, self.encode_method = tokenizer, db_dir, encode_method
         self.stopwords = set(stopwords.words("english")) - {'no'}
         use_gpu = torch.cuda.is_available()
-        self.nlp = stanza.Pipeline('en', processors='tokenize,pos,lemma', use_gpu=False)
+        self.nlp = stanza.Pipeline('en', processors='tokenize,pos,lemma', use_gpu=use_gpu)
         self.matches = {'table': {'partial': 0, 'exact': 0}, 'column': {'partial': 0, 'exact': 0, 'value': 0}}
         self.db_content, self.bridge_value = db_content, 0
 

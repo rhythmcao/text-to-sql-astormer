@@ -1,8 +1,8 @@
 #coding=utf8
 from typing import List
-from nsts.asdl import ASDLGrammar
-from nsts.asdl_ast import AbstractSyntaxTree
-from nsts.value_processor import ValueProcessor, State
+from asdl.asdl import ASDLGrammar
+from asdl.asdl_ast import AbstractSyntaxTree
+from asdl.value_processor import ValueProcessor, State
 from functools import wraps
 
 

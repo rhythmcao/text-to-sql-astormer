@@ -2,7 +2,7 @@
 import json, random, torch
 from torch.utils.data import Dataset
 from itertools import chain
-from nsts.transition_system import TransitionSystem, CONFIG_PATHS
+from asdl.transition_system import TransitionSystem, CONFIG_PATHS
 from preprocess.data_preprocess import PreProcessor
 from eval.evaluator import Evaluator
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read_model_path=
+read_model_path=$1
 test_batch_size=50
 beam_size=5
 n_best=5

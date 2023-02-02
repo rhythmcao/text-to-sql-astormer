@@ -1,8 +1,8 @@
 #coding=utf8
 import torch
 from typing import List
-from nsts.hypothesis import Hypothesis
-from nsts.transition_system import Action, ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
+from asdl.hypothesis import Hypothesis
+from asdl.transition_system import Action, ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
 
 
 class ASTBeam():
