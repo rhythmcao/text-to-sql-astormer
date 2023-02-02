@@ -217,11 +217,10 @@ class ASTDecoder(nn.Module):
                 cur_inputs = self.input_layer_norm(action_embeds + prod_embeds + field_embeds + depth_embeds)
                 prev_inputs = torch.cat([prev_inputs, cur_inputs.unsqueeze(1)], dim=1)
                 cur_decoder_relations = torch.stack([beams[bid].hyps[hid].get_relation(fid, device) for bid in active_idx for hid, fid in enumerate(beams[bid].frontier_ids)], dim=0)
-                shift_decoder_relations = cur_decoder_relations[:, :-1, :-1]
-                root_relations = torch.tensor([[self.tranx.ast_relation.child_relation_mappings[rel_id] for rel_id in rels[:, 0].tolist()] for rels in shift_decoder_relations], dtype=torch.long).to(device)
-                cur_shift_decoder_relations = F.pad(shift_decoder_relations, (1, 0, 1, 0), value=self.tranx.ast_relation.relation2id['padding-padding'])
-                cur_shift_decoder_relations[:, 1:root_relations.size(0) + 1, 0] = root_relations
-                cur_shift_decoder_relations[:, 0, 0] = self.tranx.ast_relation.relation2id['0-0']
+                root_relations = torch.tensor([[self.tranx.ast_relation.child_relation_mappings[rel_id] for rel_id in rels[:, 0].tolist()] for rels in cur_decoder_relations], dtype=torch.long).to(device)
+                shift_decoder_relations = F.pad(cur_decoder_relations[:, :-1, :-1], (1, 0, 1, 0), value=self.tranx.ast_relation.relation2id['padding-padding'])
+                shift_decoder_relations[:, 1:root_relations.size(0), 0] = root_relations[:, :-1]
+                shift_decoder_relations[:, 0, 0] = self.tranx.ast_relation.relation2id['0-0']
                 outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_shift_decoder_relations, enc_mask=cur_mask)[:, -1]
                 # outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)[:, -1]
                 # prev_action_embeds = torch.cat([history_action_embeds, action_embeds.unsqueeze(1)], dim=1)
