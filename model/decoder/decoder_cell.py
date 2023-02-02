@@ -18,9 +18,9 @@ class DecoupledAstormer(nn.Module):
         self.pad_idx = ASTRelation.DECODER_RELATIONS.index('padding-padding')
         self.self_embed_k = nn.Embedding(rn, self.hidden_size // self.num_heads, padding_idx=self.pad_idx)
         self.self_embed_v = nn.Embedding(rn, self.hidden_size // self.num_heads, padding_idx=self.pad_idx)
-        self.tgt_embed_k = nn.Embedding(rn, self.hidden_size // self.num_heads, padding_idx=self.pad_idx)
-        self.tgt_embed_v = nn.Embedding(rn, self.hidden_size // self.num_heads, padding_idx=self.pad_idx)
-        # self.tgt_embed_k, self.tgt_embed_v = self.self_embed_k, self.self_embed_v
+        # self.tgt_embed_k = nn.Embedding(rn, self.hidden_size // self.num_heads, padding_idx=self.pad_idx)
+        # self.tgt_embed_v = nn.Embedding(rn, self.hidden_size // self.num_heads, padding_idx=self.pad_idx)
+        self.tgt_embed_k, self.tgt_embed_v = self.self_embed_k, self.self_embed_v
         self.num_layers = num_layers
         decoder_layer = DecoupledAstormerLayer(self.hidden_size, self.num_heads, dropout)
         self.decoder_layers = nn.ModuleList(clones(decoder_layer, self.num_layers))
