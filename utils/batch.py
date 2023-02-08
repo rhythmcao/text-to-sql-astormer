@@ -115,7 +115,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             batch.production_ids = torch.tensor([[action_info.prod_id for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.field_ids = torch.tensor([[action_info.field_id for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.depth_ids = torch.tensor([[action_info.depth for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
-            batch.decoder_relations = torch.stack([get_shift_decoder_relation(relation) for relation in relations_list]).to(device)
+            batch.decoder_relations = torch.stack([get_decoder_relation(relation) for relation in relations_list]).to(device)
             # batch.shift_decoder_relations = torch.stack([get_shift_decoder_relation(relation) for relation in relations_list]).to(device)
             # batch.node_cross_action_relations = torch.stack([get_node_cross_action_relation(relation) for relation in relations_list]).to(device)
             batch.tgt_mask = lens2mask(torch.tensor([len(action_infos) for action_infos in action_infos_list], dtype=torch.long)).to(device)
