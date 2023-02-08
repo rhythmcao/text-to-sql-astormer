@@ -26,14 +26,14 @@ class DecoupledAstormer(nn.Module):
         self.decoder_layers = nn.ModuleList(clones(decoder_layer, self.num_layers))
 
 
-    def forward(self, q, prev, kv, rel_ids=None, shift_rel_ids=None, enc_mask=None, return_attention_weights=False):
+    def forward(self, q, prev, kv, rel_ids=None, cross_rel_ids=None, enc_mask=None, return_attention_weights=False):
         """ A stacked modules of Astormer layers.
         @args:
             q: query vector, bs x tgt_len x hs
             prev: previous action embeddings, bs x tgt_len x hs
             kv: encoded representation, bs x src_len x hs
             rel_ids: relations for input nodes, bs x tgt_len x tgt_len
-            shift_rel_ids: relations between input nodes and output actions, bs x tgt_len x tgt_len
+            cross_rel_ids: relations between input nodes and output actions, bs x tgt_len x tgt_len
             enc_mask: mask for input, bs x src_len
         @return:
             o: output vectors, bs x tgt_len x hs
@@ -45,11 +45,11 @@ class DecoupledAstormer(nn.Module):
             self_k = self_k.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             self_v = self_v.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             self_mask = (rel_ids != self.pad_idx) & future_mask
-        if shift_rel_ids is not None:
-            tgt_k, tgt_v = self.tgt_embed_k(shift_rel_ids), self.tgt_embed_v(shift_rel_ids)
+        if cross_rel_ids is not None:
+            tgt_k, tgt_v = self.tgt_embed_k(cross_rel_ids), self.tgt_embed_v(cross_rel_ids)
             tgt_k = tgt_k.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             tgt_v = tgt_v.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
-            tgt_mask = (shift_rel_ids != self.pad_idx) & future_mask
+            tgt_mask = (cross_rel_ids != self.pad_idx) & future_mask
         for i in range(self.num_layers):
             o = self.decoder_layers[i](o, prev, kv, (self_k, self_v, self_mask), (tgt_k, tgt_v, tgt_mask), enc_mask, (return_attention_weights & i == self.num_layers - 1))
         return o

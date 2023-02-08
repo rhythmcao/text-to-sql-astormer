@@ -86,14 +86,13 @@ class ASTDecoder(nn.Module):
 
         if args.decoder_cell == 'transformer':
             current_depth = self.depth_embed(torch.clamp(batch.depth_ids, 0, self.max_depth))
-            # inputs = self.input_layer_norm(current_fields + current_depth)
-            # inputs = self.input_layer_norm(parent_prods + current_fields + current_depth)
             inputs = self.input_layer_norm(prev_inputs + parent_prods + current_fields + current_depth)
 
             # forward into Astormer
             outputs = self.decoder_network(inputs, encodings, rel_ids=batch.decoder_relations, enc_mask=mask, return_attention_weights=return_attention_weights)
+            # outputs = self.decoder_network(inputs, encodings, rel_ids=batch.shift_decoder_relations, enc_mask=mask, return_attention_weights=return_attention_weights)
             # outputs = self.decoder_network(inputs, prev_inputs, encodings, rel_ids=batch.decoder_relations,
-                # shift_rel_ids=batch.shift_decoder_relations, enc_mask=mask, return_attention_weights=return_attention_weights)
+                # cross_rel_ids=batch.node_cross_action_relations, enc_mask=mask, return_attention_weights=return_attention_weights)
             if return_attention_weights:
                 outputs, attention_weights = outputs
 
@@ -169,7 +168,7 @@ class ASTDecoder(nn.Module):
         active_idx = list(range(num_examples))
         beams = [ASTBeam(self.tranx, db, beam_size=beam_size, n_best=n_best, decode_order=decode_order, device=device) for db in batch.database]
         if args.decoder_cell == 'transformer':
-            history_action_embeds = encodings.new_zeros((num_examples, 0, args.decoder_hidden_size)) 
+            history_action_embeds = encodings.new_zeros((num_examples, 0, args.decoder_hidden_size))
             prev_inputs = encodings.new_zeros((num_examples, 0, args.decoder_hidden_size))
         else:
             prev_idx = torch.arange(num_examples, dtype=torch.long, device=device)
@@ -212,22 +211,22 @@ class ASTDecoder(nn.Module):
                 if t == 0: depth_ids = prod_ids.new_zeros((num_examples,))
                 else: depth_ids = torch.cat([beams[bid].get_current_depth_ids() for bid in active_idx])
                 depth_embeds = self.depth_embed(torch.clamp(depth_ids, min=0, max=self.max_depth))
-                # cur_inputs = self.input_layer_norm(field_embeds + depth_embeds)
-                # cur_inputs = self.input_layer_norm(prod_embeds + field_embeds + depth_embeds)
                 cur_inputs = self.input_layer_norm(action_embeds + prod_embeds + field_embeds + depth_embeds)
                 prev_inputs = torch.cat([prev_inputs, cur_inputs.unsqueeze(1)], dim=1)
                 cur_decoder_relations = torch.stack([beams[bid].hyps[hid].get_relation(fid, device) for bid in active_idx for hid, fid in enumerate(beams[bid].frontier_ids)], dim=0)
-                root_relations = torch.tensor([[self.tranx.ast_relation.child_relation_mappings[rel_id] for rel_id in rels[:, 0].tolist()] for rels in cur_decoder_relations], dtype=torch.long).to(device)
-                shift_decoder_relations = F.pad(cur_decoder_relations[:, :-1, :-1], (1, 0, 1, 0), value=self.tranx.ast_relation.relation2id['padding-padding'])
-                shift_decoder_relations[:, 1:root_relations.size(0), 0] = root_relations[:, :-1]
-                shift_decoder_relations[:, 0, 0] = self.tranx.ast_relation.relation2id['0-0']
-                outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=shift_decoder_relations, enc_mask=cur_mask)[:, -1]
-                # outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)[:, -1]
+                outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)[:, -1]
+
+                # root_relations = torch.tensor([[self.tranx.ast_relation.child_relation_mappings[rel_id] for rel_id in rels[:, 0].tolist()] for rels in cur_decoder_relations], dtype=torch.long).to(device)
+                # shift_decoder_relations = F.pad(cur_decoder_relations[:, :-1, :-1], (1, 0, 1, 0), value=self.tranx.ast_relation.relation2id['padding-padding'])
+                # shift_decoder_relations[:, 1:root_relations.size(0), 0] = root_relations[:, :-1]
+                # shift_decoder_relations[:, 0, 0] = self.tranx.ast_relation.relation2id['0-0']
+                # outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=shift_decoder_relations, enc_mask=cur_mask)[:, -1]
+
                 # prev_action_embeds = torch.cat([history_action_embeds, action_embeds.unsqueeze(1)], dim=1)
                 # root_relations = torch.tensor([[self.tranx.ast_relation.child_relation_mappings[rel_id] for rel_id in rels[:, 0].tolist()] for rels in cur_decoder_relations], dtype=torch.long).to(device).unsqueeze(-1)
-                # cur_node_cross_action_relations = torch.cat([root_relations, cur_decoder_relations[:, :, :-1]], dim=-1)
+                # node_cross_action_relations = torch.cat([root_relations, cur_decoder_relations[:, :, :-1]], dim=-1)
                 # outputs = self.decoder_network(prev_inputs, prev_action_embeds, cur_encodings, rel_ids=cur_decoder_relations,
-                    # shift_rel_ids=cur_node_cross_action_relations, enc_mask=cur_mask)[:, -1]
+                    # cross_rel_ids=node_cross_action_relations, enc_mask=cur_mask)[:, -1]
             else:
                 cur_inputs = action_embeds + prod_embeds + field_embeds
                 if t == 0: parent_states = encodings.new_zeros((num_examples, encodings.size(-1)))
@@ -267,7 +266,7 @@ class ASTDecoder(nn.Module):
             if args.decoder_cell == 'transformer':
                 prev_inputs = prev_inputs[live_hyp_ids]
                 # history_action_embeds = prev_action_embeds[live_hyp_ids]
-            else: 
+            else:
                 h_c = (h_t[:, live_hyp_ids], c_t[:, live_hyp_ids])
                 history_states = torch.cat([history_states[live_hyp_ids], h_c[0][-1].unsqueeze(1)], dim=1)
                 prev_idx = prev_idx[live_hyp_ids]
