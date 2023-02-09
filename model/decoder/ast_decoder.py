@@ -87,6 +87,7 @@ class ASTDecoder(nn.Module):
         if args.decoder_cell == 'transformer':
             current_depth = self.depth_embed(torch.clamp(batch.depth_ids, 0, self.max_depth))
             inputs = self.input_layer_norm(prev_inputs + parent_prods + current_fields + current_depth)
+            # inputs = self.input_layer_norm(parent_prods + current_fields + current_depth)
 
             # forward into Astormer
             outputs = self.decoder_network(inputs, encodings, rel_ids=batch.decoder_relations, enc_mask=mask, return_attention_weights=return_attention_weights)
@@ -212,6 +213,7 @@ class ASTDecoder(nn.Module):
                 else: depth_ids = torch.cat([beams[bid].get_current_depth_ids() for bid in active_idx])
                 depth_embeds = self.depth_embed(torch.clamp(depth_ids, min=0, max=self.max_depth))
                 cur_inputs = self.input_layer_norm(action_embeds + prod_embeds + field_embeds + depth_embeds)
+                # cur_inputs = self.input_layer_norm(prod_embeds + field_embeds + depth_embeds)
                 prev_inputs = torch.cat([prev_inputs, cur_inputs.unsqueeze(1)], dim=1)
                 cur_decoder_relations = torch.stack([beams[bid].hyps[hid].get_relation(fid, device) for bid in active_idx for hid, fid in enumerate(beams[bid].frontier_ids)], dim=0)
                 outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)[:, -1]
