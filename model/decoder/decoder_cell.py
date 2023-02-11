@@ -40,6 +40,7 @@ class DecoupledAstormer(nn.Module):
         """
         o, future_mask = q, torch.tril(torch.ones((q.size(0), q.size(1), q.size(1)), dtype=torch.bool, device=q.device))
         self_k, self_v, tgt_k, tgt_v = None, None, None, None
+        self_mask, tgt_mask = future_mask, future_mask
         if rel_ids is not None:
             self_k, self_v = self.self_embed_k(rel_ids), self.self_embed_v(rel_ids)
             self_k = self_k.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
