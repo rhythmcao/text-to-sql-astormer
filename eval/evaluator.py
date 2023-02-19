@@ -141,8 +141,9 @@ class ExecutionChecker():
         db_id = db['db_id']
         db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
         sql = postprocess(sql)
-        # if not os.path.exists(db_path):
-        return self.surface_checker.validity_check(sql, db)
+        if not os.path.exists(db_path):
+            return self.surface_checker.validity_check(sql, db)
+
         flag, _ = asyncio.run(exec_on_db(db_path, sql))
         if flag == 'exception':
             return False
