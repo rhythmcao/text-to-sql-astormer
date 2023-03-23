@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from model.decoder.ast_beam import ASTBeam
 from model.decoder.decoder_cell import DecoupledAstormer, Astormer, LSTM, ONLSTM
-from model.model_utils import Registrable, MultiHeadAttention, PointerNetwork, TiedLinearClassifier
+from model.model_utils import Registrable, MultiHeadAttention, PointerNetwork, TiedLinearClassifier, make_relative_positions
 from asdl.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
 
 
@@ -216,6 +216,7 @@ class ASTDecoder(nn.Module):
                 # cur_inputs = self.input_layer_norm(prod_embeds + field_embeds + depth_embeds)
                 prev_inputs = torch.cat([prev_inputs, cur_inputs.unsqueeze(1)], dim=1)
                 cur_decoder_relations = torch.stack([beams[bid].hyps[hid].get_relation(fid, device) for bid in active_idx for hid, fid in enumerate(beams[bid].frontier_ids)], dim=0)
+                # cur_decoder_relations = make_relative_positions(t + 1).unsqueeze(0).expand(prev_inputs.size(0), -1, -1).to(device)
                 outputs = self.decoder_network(prev_inputs, cur_encodings, rel_ids=cur_decoder_relations, enc_mask=cur_mask)[:, -1]
 
                 # root_relations = torch.tensor([[self.tranx.ast_relation.child_relation_mappings[rel_id] for rel_id in rels[:, 0].tolist()] for rels in cur_decoder_relations], dtype=torch.long).to(device)

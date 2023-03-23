@@ -1,4 +1,5 @@
 #coding=utf8
+import numpy as np
 import torch, copy, math
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,6 +9,23 @@ import torch.nn.utils.rnn as rnn_utils
 def clones(module, N):
     "Produce N identical layers."
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
+
+
+def make_relative_positions(t, clamp=18):
+    """ Construct the relative positions for the decoder. Given the length t(>0), construct matrix
+    [
+        [1, 0, ..., 0],
+        [2, 1, 0, ...., 0],
+        [3, 2, 1, 0, ..., 0],
+        ...,
+        [t, t-1, ..., 1]
+    ]
+    """
+    relations = []
+    for i in range(t):
+        cur_rel = list(range(i + 1, 0, -1)) + [0] * (t - i - 1)
+        relations.append(cur_rel)
+    return torch.clamp(torch.tensor(relations, dtype=torch.long), max=clamp)
 
 
 def lens2mask(lens, max_len=None):

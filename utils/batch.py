@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from functools import partial
 from utils.example import Example, get_position_ids
-from model.model_utils import lens2mask, cached_property
+from model.model_utils import lens2mask, cached_property, make_relative_positions
 from asdl.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction
 from asdl.relation_utils import ENCODER_RELATIONS
 from preprocess.preprocess_utils import get_question_relation
@@ -115,6 +115,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
             batch.production_ids = torch.tensor([[action_info.prod_id for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.field_ids = torch.tensor([[action_info.field_id for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
             batch.depth_ids = torch.tensor([[action_info.depth for action_info in action_infos] + [0] * (max_action_num - len(action_infos)) for action_infos in action_infos_list], dtype=torch.long, device=device)
+            # relations_list = [make_relative_positions(rel.size(0)) for rel in relations_list] # use relation p_j - p_i
             batch.decoder_relations = torch.stack([get_decoder_relation(relation) for relation in relations_list]).to(device)
             # batch.shift_decoder_relations = torch.stack([get_shift_decoder_relation(relation) for relation in relations_list]).to(device)
             # batch.node_cross_action_relations = torch.stack([get_node_cross_action_relation(relation) for relation in relations_list]).to(device)

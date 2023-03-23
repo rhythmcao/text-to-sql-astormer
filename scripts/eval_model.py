@@ -1,5 +1,5 @@
 #coding=utf8
-import sys, os, gc, torch, pickle
+import sys, os, gc, torch, pickle, time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.example import Example
 from utils.batch import Batch
@@ -12,13 +12,16 @@ def decode(model, dataset, output_path=None, batch_size=64, beam_size=5, n_best=
     eval_collate_fn = Batch.get_collate_fn(device=device, train=False)
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=False, collate_fn=eval_collate_fn)
 
-    pred_sqls = []
+    pred_sqls, time_elapse = [], 0
     with torch.no_grad():
         for cur_batch in data_loader:
+            cur_time = time.time()
             hyps = model.parse(cur_batch, beam_size=beam_size, n_best=n_best, decode_order=decode_order)
+            time_elapse += time.time() - cur_time
             sqls = evaluator.postprocess(hyps, cur_batch.examples, decode_method=decode_method, execution_guided=True)
             pred_sqls.extend(sqls)
 
+    # print(f'[Evaluation]: total elapsed time for model.parse is {1000 * time_elapse * 1000 / len(dataset):.6f}ms/1000 samples .')
     torch.cuda.empty_cache()
     gc.collect()
     return evaluator.accuracy(pred_sqls, dataset, output_path, etype=etype)
