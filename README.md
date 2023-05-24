@@ -27,7 +27,7 @@ The following commands are also provided in `setup.sh`.
 
 ## Download and preprocess dataset
 
-1. Create a new directory `data` to store all text-to-SQL data. Next, download, unzip and rename the [spider.zip](https://drive.google.com/uc?export=download&id=1_AckYkinAnhqmRQtGsQgUKAnTHxxX5J0), [sparc.zip](https://drive.google.com/uc?export=download&id=1Uu7NMHTR1tdQw1t7bAuM7OPU4LElVKfg) and [cosql_dataset.zip](https://drive.google.com/uc?export=download&id=1Y3ydpFiQQ3FC0bzdfy3groV95O_f1nXF), into the directory `data`. The testsuite database, for [Test Suite Accuracy](https://arxiv.org/abs/2010.02840), is also [downloaded](https://drive.google.com/file/d/1mkCx2GOFIqNesD4y8TDAO1yX1QZORP5w/view) and renamed into `data/spider/database-testsuite`. These default paths can be changed in `asdl/transition_system.py`. The directory `data` should be organized as follows:
+1. Create a new directory `data` to store all text-to-SQL data. Next, download, unzip and rename the [spider.zip](https://drive.google.com/uc?export=download&id=1_AckYkinAnhqmRQtGsQgUKAnTHxxX5J0), [sparc.zip](https://drive.google.com/uc?export=download&id=1Uu7NMHTR1tdQw1t7bAuM7OPU4LElVKfg) and [cosql_dataset.zip](https://drive.google.com/uc?export=download&id=1Y3ydpFiQQ3FC0bzdfy3groV95O_f1nXF), into the directory `data`. The testsuite database, for [Test Suite Accuracy](https://arxiv.org/abs/2010.02840), is also [downloaded](https://drive.google.com/file/d/1mkCx2GOFIqNesD4y8TDAO1yX1QZORP5w/view) and renamed into `data/spider/database-testsuite`. These default paths can be changed in `nsts/transition_system.py`. The directory `data` should be organized as follows:
 
         - data:
                 - spider:
@@ -55,6 +55,20 @@ The following commands are also provided in `setup.sh`.
                                 - cosql_dev.json
                         - tables.json
                         - ... other directories or files
+                - dusql:
+                        - db_content.json
+                        - train.json
+                        - dev.json
+                        - test.json
+                        - db_schema.json
+                        - ... other files
+                - chase:
+                        - database:
+                                - ... all .sqlite files
+                        - chase_tables.json
+                        - chase_train.json
+                        - chase_dev.json
+                        - chase_test.json
 
 2. Merge `data/spider/train_spider.json` and `data/spider/train_others.json` into one single dataset `data/spider/train.json`, and preprocess all datasets:
   - we also fix some annotation errors in the following script

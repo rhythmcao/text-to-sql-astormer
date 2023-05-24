@@ -2,7 +2,7 @@
 from io import StringIO
 from collections import OrderedDict
 from typing import List, Dict
-from asdl.asdl import ASDLCompositeType, Field, ASDLProduction
+from nsts.asdl import ASDLCompositeType, Field, ASDLProduction
 
 
 class RealizedField(Field):

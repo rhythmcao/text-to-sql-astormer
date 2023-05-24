@@ -1,8 +1,8 @@
 #coding=utf8
 import json, sys, os, re
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from asdl.parse_sql_to_json import AGG_OPS, UNIT_OPS, WHERE_OPS
-from asdl.value_processor import is_number
+from nsts.parse_sql_to_json import AGG_OPS, UNIT_OPS, WHERE_OPS
+from nsts.value_processor import is_number
 
 
 class JsonUnparser():
@@ -149,7 +149,7 @@ def recover_dataset(dataset_path, output_path, table_path):
 if __name__ == '__main__':
 
     import argparse
-    from asdl.transition_system import CONFIG_PATHS
+    from nsts.transition_system import CONFIG_PATHS
     from eval.evaluation import evaluate, build_foreign_key_map_from_json
 
     parser = argparse.ArgumentParser()

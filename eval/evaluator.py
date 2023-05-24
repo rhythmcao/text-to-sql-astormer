@@ -4,8 +4,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from eval.evaluation import build_foreign_key_map_from_json, evaluate
 from eval.evaluation import Evaluator as Engine
 from eval.exec_eval import postprocess, exec_on_db
-from asdl.transition_system import CONFIG_PATHS, TransitionSystem
-from asdl.parse_sql_to_json import get_sql
+from nsts.transition_system import CONFIG_PATHS, TransitionSystem
+from nsts.parse_sql_to_json import get_sql
 
 
 class SurfaceChecker():

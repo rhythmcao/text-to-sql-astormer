@@ -25,7 +25,6 @@
 ################################
 
 import json, sys, os, re
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nltk import word_tokenize
 
 CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
@@ -249,9 +248,16 @@ def parse_col(toks, start_idx, tables_with_alias, schema, default_tables=None):
     """
         :returns next idx, column id
     """
+        
+
     tok = toks[start_idx]
     if tok == "*":
         return start_idx + 1, schema.idMap[tok]
+
+    if start_idx + 1 < len(toks) and toks[start_idx + 1] == '(': # special case in DuSQL, column 'GDP总计(亿)'
+        assert toks[start_idx + 3] == ')', 'Error col: {}'.format(tok)
+        tok += f'({toks[start_idx + 2]})'
+        start_idx += 3
 
     if '.' in tok:  # if token is a composite
         alias, col = tok.split('.')
@@ -359,7 +365,7 @@ def parse_value(toks, start_idx, tables_with_alias, schema, default_tables=None)
 
     if toks[idx] == 'select':
         idx, val = parse_sql(toks, idx, tables_with_alias, schema)
-    elif "\"" in toks[idx]:  # token is a string value
+    elif "\"" in toks[idx]: # token is a string value
         val = toks[idx]
         idx += 1
     else:
@@ -623,10 +629,17 @@ def parse_sql(toks, start_idx, tables_with_alias, schema):
 
 
 def get_sql(query, table):
+    # try:
     toks = tokenize(query)
     schema = SchemaID(table)
     tables_with_alias, toks = get_tables_with_alias(schema.schema, toks)
     _, sql = parse_sql(toks, 0, tables_with_alias, schema)
+    # except:
+        # print(query)
+        # print(toks)
+        # print(table['table_names'])
+        # print(list([c for _, c in table['column_names']]))
+        # exit(0)
     return sql
 
 
@@ -648,7 +661,7 @@ def parse_dataset(input_path, table_path):
         dataset = json.load(f)
     with open(table_path, 'r') as f:
         tables = {db['db_id']: db for db in json.load(f)}
-
+    error = 0
     parser = JsonParser()
     for ex in dataset:
         if 'interaction' in ex: # conversational text-to-SQL
@@ -687,9 +700,13 @@ def parse_dataset(input_path, table_path):
                 ex['query'] = 'SELECT T1.company_type FROM Third_Party_Companies AS T1 JOIN Maintenance_Contracts AS T2 ON T1.company_id  =  T2.maintenance_contract_company_id ORDER BY T2.contract_end_date DESC LIMIT 1'
             elif 'WHERE T2.maxOccupancy  =  T1.Adults + T1.Kids' in ex['query']:
                 ex['query'] = ex['query'].replace('T2.maxOccupancy  =  T1.Adults + T1.Kids', 'T1.Adults + T1.Kids = T2.maxOccupancy')
-            
-            ex['sql'] = parser.parse(ex['query'], tables[ex['db_id']])
-
+            try:
+                ex['sql'] = parser.parse(ex['query'], tables[ex['db_id']])
+            except:
+                error += 1
+                print(ex['query'])
+    print(error)
+    input_path = input_path + '.bak'
     with open(input_path, 'w') as of:
         json.dump(dataset, of, ensure_ascii=False, sort_keys=True, indent=4, separators=(',', ': '))
         print(f'Parsed dataset is serialized into file: {input_path}')
@@ -698,10 +715,10 @@ def parse_dataset(input_path, table_path):
 if __name__ == '__main__':
 
     import argparse
-    from asdl.transition_system import CONFIG_PATHS
+    from transition_system import CONFIG_PATHS
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql'], help='filepath to the dataset')
+    parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='filepath to the dataset')
     parser.add_argument('-s', dest='data_split', default='train', choices=['train', 'dev', 'all'], help='dataset split')
     args = parser.parse_args(sys.argv[1:])
 

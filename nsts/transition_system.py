@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from typing import Union, List, Tuple
 from transformers import AutoTokenizer
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from asdl.asdl_ast import AbstractSyntaxTree
+from nsts.asdl_ast import AbstractSyntaxTree
 
 
 CONFIG_PATHS = {
-    'grammar': 'asdl/sql_grammar.txt',
+    'grammar': 'nsts/sql_grammar.txt',
     'plm_dir': 'pretrained_models',
     'spider': {
         'train': 'data/spider/train.json',
@@ -32,6 +32,22 @@ CONFIG_PATHS = {
         'tables': 'data/cosql/tables.json',
         'db_dir': 'data/cosql/database',
         'testsuite': 'data/spider/database-testsuite'
+    },
+    'dusql': {
+        'train': 'data/dusql/train.json',
+        'dev': 'data/dusql/dev.json',
+        'test': 'data/dusql/test.json',
+        'tables': 'data/dusql/tables.json',
+        'db_dir': 'data/dusql/database',
+        'testsuite': 'data/dusql/database'
+    },
+    'chase': {
+        'train': 'data/chase/chase_train.json',
+        'dev': 'data/chase/chase_dev.json',
+        'tables': 'data/chase/chase_tables.json',
+        'test': 'data/chase/chase_test.json',
+        'db_dir': 'data/chase/database',
+        'testsuite': 'data/chase/database' # no testsuite DBs available
     }
 }
 
@@ -100,9 +116,9 @@ class TransitionSystem(object):
 
     def __init__(self, dataset: str, tokenizer: str = None, db_dir: str = None):
         super(TransitionSystem, self).__init__()
-        from asdl.asdl import ASDLGrammar
+        from nsts.asdl import ASDLGrammar
         self.grammar = ASDLGrammar.from_filepath(CONFIG_PATHS['grammar'])
-        from asdl.relation_utils import ASTRelation
+        from nsts.relation_utils import ASTRelation
         self.ast_relation = ASTRelation()
 
         tokenizer_path = os.path.join(CONFIG_PATHS['plm_dir'], tokenizer) if tokenizer is not None else os.path.join(CONFIG_PATHS['plm_dir'], 'grappa_large_jnt')
@@ -110,18 +126,18 @@ class TransitionSystem(object):
         eov_token = self.tokenizer.eos_token if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token is not None else self.tokenizer.sep_token
         GenerateTokenAction.EOV_ID = self.tokenizer.convert_tokens_to_ids(eov_token)
 
-        from asdl.value_processor import ValueProcessor
+        from nsts.value_processor import ValueProcessor
         self.db_dir = CONFIG_PATHS[dataset]['db_dir'] if db_dir is None else db_dir
         self.value_processor = ValueProcessor(self.tokenizer, self.db_dir, eov_token=eov_token)
 
-        from asdl.parse_json_to_ast import ASTParser
+        from nsts.parse_json_to_ast import ASTParser
         self.ast_parser = ASTParser(self.grammar, self.value_processor)
-        from asdl.parse_sql_to_json import JsonParser
+        from nsts.parse_sql_to_json import JsonParser
         self.json_parser = JsonParser()
 
-        from asdl.unparse_sql_from_ast import ASTUnParser
+        from nsts.unparse_sql_from_ast import ASTUnParser
         self.ast_unparser = ASTUnParser(self.grammar, self.value_processor)
-        from asdl.unparse_sql_from_json import JsonUnparser
+        from nsts.unparse_sql_from_json import JsonUnparser
         self.json_unparser = JsonUnparser()
 
 
@@ -364,7 +380,7 @@ if __name__ == '__main__':
     from eval.evaluation import evaluate, build_foreign_key_map_from_json
 
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('-d', dest='dataset', choices=['spider', 'sparc', 'cosql'], help='dataset name')
+    arg_parser.add_argument('-d', dest='dataset', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='dataset name')
     arg_parser.add_argument('-t', dest='tokenizer', default='grappa_large_jnt', help='tokenizer or PLM name, stored in ./pretrained_models/ directory')
     arg_parser.add_argument('-o', dest='output', default='ast', choices=['ast', 'seq'], help='decode method: AST or Sequence')
     arg_parser.add_argument('-e', dest='etype', default='all', choices=['match', 'exec', 'all'], help='evaluation metric, exact set match or execution accuracy or both')

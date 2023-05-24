@@ -4,7 +4,7 @@ import os, re, sqlite3, string, stanza, torch
 from typing import List, Tuple
 from nltk.corpus import stopwords
 from itertools import product, combinations
-from asdl.relation_utils import ENCODER_RELATIONS, MAX_RELATIVE_DIST
+from nsts.relation_utils import ENCODER_RELATIONS, MAX_RELATIVE_DIST
 from preprocess.bridge_content_encoder import get_database_matches
 
 
@@ -96,7 +96,7 @@ class PreProcessor(object):
         column2table = list(map(lambda x: x[0], db['column_names'])) # from column id to table id
         table2columns = [[] for _ in range(len(db['table_names']))] # from table id to column ids list
         for col_id, col in enumerate(db['column_names']):
-            if col_id == 0: continue
+            if col_id == 0 or col[0] == -1: continue
             table2columns[col[0]].append(col_id)
         db['column2table'], db['table2columns'] = column2table, table2columns
 
@@ -262,7 +262,7 @@ class PreProcessor(object):
                 conn.text_factory = lambda b: b.decode(errors='ignore')
                 conn.execute('pragma foreign_keys=ON')
                 for cid, (tid, col_name) in enumerate(db['column_names_original']):
-                    if cid == 0 or db['column_types'][cid] == 'text' or 'id' in db['column_names'][cid][1].lower().split(' '):
+                    if cid == 0 or tid == -1 or db['column_types'][cid] == 'text' or 'id' in db['column_names'][cid][1].lower().split(' '):
                         cell_values.append([])
                         continue
                     try:

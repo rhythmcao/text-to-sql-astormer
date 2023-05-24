@@ -1,9 +1,9 @@
 #coding=utf8
 from functools import wraps
-from asdl.parse_sql_to_json import WHERE_OPS
-from asdl.asdl import ASDLConstructor, ASDLGrammar
-from asdl.asdl_ast import AbstractSyntaxTree
-from asdl.value_processor import ValueProcessor
+from nsts.parse_sql_to_json import WHERE_OPS
+from nsts.asdl import ASDLConstructor, ASDLGrammar
+from nsts.asdl_ast import AbstractSyntaxTree
+from nsts.value_processor import ValueProcessor
 
 
 PARSER_DEBUG = False # if DEBUG, allow ERROR raised to traceback

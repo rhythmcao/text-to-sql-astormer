@@ -6,7 +6,7 @@ import numpy as np
 from model.decoder.ast_beam import ASTBeam
 from model.decoder.decoder_cell import DecoupledAstormer, Astormer, LSTM, ONLSTM
 from model.model_utils import Registrable, MultiHeadAttention, PointerNetwork, TiedLinearClassifier, make_relative_positions
-from asdl.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
+from nsts.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
 
 
 @Registrable.register('ast')

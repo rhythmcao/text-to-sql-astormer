@@ -16,7 +16,7 @@ def init_args(params=sys.argv[1:]):
 def add_argument_base(arg_parser):
     #### General configuration ####
     arg_parser.add_argument('--task', default='text2sql', help='Task name')
-    arg_parser.add_argument('--dataset', type=str, default='spider', choices=['spider', 'sparc', 'cosql'], help='Dataset name')
+    arg_parser.add_argument('--dataset', type=str, default='spider', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='Dataset name')
     arg_parser.add_argument('--seed', default=999, type=int, help='Random seed')
     arg_parser.add_argument('--device', type=int, default=0, help='Use which device: -1 -> cpu ; the index of gpu o.w.')
     arg_parser.add_argument('--ddp', action='store_true', help='use distributed data parallel training')

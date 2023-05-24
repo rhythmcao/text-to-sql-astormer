@@ -3,7 +3,7 @@ import torch, math
 import torch.nn as nn
 import torch.nn.functional as F
 from model.model_utils import clones, FFN
-from asdl.relation_utils import ASTRelation
+from nsts.relation_utils import ASTRelation
 
 
 class DecoupledAstormer(nn.Module):

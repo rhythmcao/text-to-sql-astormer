@@ -2,7 +2,7 @@
 import json, random, torch
 from torch.utils.data import Dataset
 from itertools import chain
-from asdl.transition_system import TransitionSystem, CONFIG_PATHS
+from nsts.transition_system import TransitionSystem, CONFIG_PATHS
 from preprocess.data_preprocess import PreProcessor
 from eval.evaluator import Evaluator
 
@@ -118,7 +118,7 @@ class Example():
 
         # labeled outputs
         self.query, self.ast, self.action, self.decoder_relation = '', None, [], []
-        if ex['query'].strip():
+        if 'query' in ex and ex['query'].strip():
             self.query = ' '.join(' '.join(ex['query'].split('\n')).split('\t'))
             if Example.decode_method == 'ast':
                 self.ast = Example.tranx.parse_sql_to_ast(ex['sql'], db)
@@ -136,8 +136,10 @@ def get_position_ids(ex: Example, shuffle: bool = True):
     table_position_id, column_position_id = [None] * table_num, [None] * column_num
 
     start = len(question_position_id)
-    column_position_id[0] = list(range(start, start + column_token_len[0]))
-    start += column_token_len[0]
+    for cid, (tid, _) in enumerate(db['column_names']):
+        if tid != -1: break
+        column_position_id[cid] = list(range(start, start + column_token_len[cid]))
+        start += column_token_len[cid]
 
     table_idxs = list(range(table_num))
     if shuffle:

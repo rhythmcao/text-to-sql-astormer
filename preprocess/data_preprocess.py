@@ -3,7 +3,7 @@ import os, json, argparse, sys, time
 from typing import List
 from transformers import AutoTokenizer
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from asdl.transition_system import CONFIG_PATHS
+from nsts.transition_system import CONFIG_PATHS
 from preprocess.preprocess_utils import PreProcessor
 
 
@@ -45,7 +45,7 @@ def process_dataset_input(processor: PreProcessor, dataset: List[dict], tables: 
 if __name__ == '__main__':
 
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('-d', dest='dataset', type=str, required=True, choices=['spider', 'sparc', 'cosql'])
+    arg_parser.add_argument('-d', dest='dataset', type=str, required=True, choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'])
     arg_parser.add_argument('-t', dest='tokenizer', type=str, default='grappa_large_jnt', help='PLM name used for the tokenizer and vocabulary')
     arg_parser.add_argument('-s', dest='data_split', type=str, default='all', choices=['train', 'dev', 'all'], help='dataset path')
     arg_parser.add_argument('-e', dest='encode_method', type=str, default='none', choices=['none', 'rgatsql'], help='encode method')

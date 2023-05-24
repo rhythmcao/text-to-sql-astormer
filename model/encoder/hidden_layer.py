@@ -2,7 +2,7 @@
 import torch, math
 import torch.nn as nn
 from model.model_utils import Registrable, clones, FFN
-from asdl.relation_utils import ENCODER_RELATIONS
+from nsts.relation_utils import ENCODER_RELATIONS
 
 
 @Registrable.register('rgatsql')
