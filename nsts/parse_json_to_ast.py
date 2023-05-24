@@ -145,8 +145,8 @@ class ASTParser():
             else: # in DuSQL, two SQLs in from clause
                 left_sql, right_sql = table_units[0][1], table_units[1][1]
                 ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_name('FromSQLTwo'))
-                ast_node[self.grammar.get_field_by_name('sql from_sql')][0].add_value(self.parse_sql(left_sql))
-                ast_node[self.grammar.get_field_by_name('sql from_sql')][1].add_value(self.parse_sql(right_sql))
+                ast_node[self.grammar.get_field_by_name('sql left_sql')][0].add_value(self.parse_sql(left_sql))
+                ast_node[self.grammar.get_field_by_name('sql right_sql')][0].add_value(self.parse_sql(right_sql))
         return ast_node
 
 
@@ -183,8 +183,8 @@ class ASTParser():
                 'OrderByColumn' + ASDLConstructor.number2word[len(orderby_clause[1])]
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_name(ctr_name))
             col_fields = ast_node[self.grammar.get_field_by_name('col_unit col_unit')]
-            for idx, val_unit in enumerate(orderby_clause[1]):
-                col_unit = self.convert_val_unit(val_unit)
+            for idx, (agg, val_unit) in enumerate(orderby_clause[1]):
+                col_unit = self.convert_agg_val_unit(agg, val_unit)
                 col_node = self.parse_col_unit(col_unit)
                 col_fields[idx].add_value(col_node)
             order_node = AbstractSyntaxTree(self.grammar.get_prod_by_name(orderby_clause[0].title()))
@@ -247,10 +247,10 @@ class ASTParser():
 
 
     def parse_cond_unit(self, cond_unit: list):
-        cmp_op, val_unit = WHERE_OPS[cond_unit[1]], cond_unit[2]
+        agg_id, cmp_op, val_unit = cond_unit[0], WHERE_OPS[cond_unit[1]], cond_unit[2]
         ctr_name = 'CmpCondition' if cmp_op != 'between' else 'BetweenCondition'
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_name(ctr_name))
-        col_node = self.parse_col_unit(self.convert_val_unit(val_unit))
+        col_node = self.parse_col_unit(self.convert_agg_val_unit(agg_id, val_unit))
         ast_node[self.grammar.get_field_by_name('col_unit col_unit')][0].add_value(col_node)
         val1, val2 = cond_unit[3], cond_unit[4]
         if cmp_op == 'between':
@@ -259,8 +259,7 @@ class ASTParser():
             right_value_node = self.parse_value(val2)
             ast_node[self.grammar.get_field_by_name('value right_value')][0].add_value(right_value_node)
         else:
-            not_op = 'not ' if cond_unit[0] else ''
-            ctr_name = WHERE_OPS_NAME[not_op + cmp_op]
+            ctr_name = WHERE_OPS_NAME[cmp_op]
             cmp_node = AbstractSyntaxTree(self.grammar.get_prod_by_name(ctr_name))
             ast_node[self.grammar.get_field_by_name('cmp_op cmp_op')][0].add_value(cmp_node)
             value_node = self.parse_value(val1)

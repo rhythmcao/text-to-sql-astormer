@@ -58,7 +58,7 @@ class JsonUnparser():
 
 
     def unparse_orderby(self, orderby, db):
-        return ' , '.join([self.unparse_val_unit(val_unit, db) for val_unit in orderby[1]]) + ' ' + orderby[0].lower()
+        return ' , '.join([self.unparse_val_unit(val_unit, db) if agg == 0 else AGG_OPS[agg].lower() + f' ( {self.unparse_val_unit(val_unit, db)} ) ' for agg, val_unit in orderby[1]]) + ' ' + orderby[0].lower()
 
 
     def unparse_conds(self, conds: list, db: dict):
@@ -68,18 +68,18 @@ class JsonUnparser():
 
 
     def unparse_cond(self, cond: list, db: dict):
-        not_op, cmp_op, val_unit, val1, val2 = cond
-        val_str = self.unparse_val_unit(val_unit, db)
+        agg_id, cmp_id, val_unit, val1, val2 = cond
+        agg_op = AGG_OPS[agg_id].lower()
+        if agg_op == 'none':
+            val_str = self.unparse_val_unit(val_unit, db)
+        else:
+            val_str = agg_op + f'( {self.unparse_val_unit(val_unit, db)} )'
         val1_str = self.unparse_val(val1, db)
-        if not_op:
-            assert cmp_op in [8, 9]
-            not_str = 'not '
-        else: not_str = ''
-        if cmp_op == 1:
+        cmp_op = WHERE_OPS[cmp_id].lower()
+        if 'between' in cmp_op:
             val2_str = self.unparse_val(val2, db)
             return val_str + ' between ' + val1_str + ' and ' + val2_str
-        cmp_str = WHERE_OPS[cmp_op].lower()
-        return val_str + ' ' + not_str + cmp_str + ' ' + val1_str
+        return val_str + ' ' + cmp_op + ' ' + val1_str
 
 
     def unparse_val(self, val, db):
