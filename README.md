@@ -32,9 +32,9 @@ The following commands are also provided in `setup.sh`.
         - data:
                 - spider:
                         - database:
-                                - ... all databases
+                                - ... # all databases
                         - database-testsuite:
-                                - ... all databases for Test Suite Accuracy
+                                - ... # all databases for Test Suite Accuracy
                         - train_spider.json
                         - train_others.json
                         - dev.json
@@ -42,11 +42,11 @@ The following commands are also provided in `setup.sh`.
                         - ... other files
                 - sparc:
                         - database:
-                                - ... all databases
+                                - ... # all databases
                         - train.json
                         - dev.json
                         - tables.json
-                        - ... other files
+                        - ... # other files
                 - cosql:
                         - database:
                                 - ... all databases
@@ -54,25 +54,30 @@ The following commands are also provided in `setup.sh`.
                                 - cosql_train.json
                                 - cosql_dev.json
                         - tables.json
-                        - ... other directories or files
+                        - ... #other directories or files
                 - dusql:
+                        - database:
+                                - ... # all .sqlite files to be created in step 2 preprocessing
                         - db_content.json
                         - train.json
                         - dev.json
                         - test.json
                         - db_schema.json
-                        - ... other files
+                        - tables.json # to be created in step 2 preprocessing
+                        - ... # other files
                 - chase:
                         - database:
-                                - ... all .sqlite files
+                                - ... # all .sqlite files
                         - chase_tables.json
                         - chase_train.json
                         - chase_dev.json
                         - chase_test.json
 
-2. Merge `data/spider/train_spider.json` and `data/spider/train_others.json` into one single dataset `data/spider/train.json`, and preprocess all datasets:
-  - we also fix some annotation errors in the following script
-  - it takes roughly 10 minutes to preprocess each dataset (including training and validation set)
+2. All datasets preprocessing:
+  - Merge `data/spider/train_spider.json` and `data/spider/train_others.json` into one single dataset `data/spider/train.json`
+  - Transform the dataset, tables and database format of Chinese benchmark DuSQL
+  - Fix some annotation errors of SQLs
+  - It takes roughly 10 minutes to preprocess each dataset (including training and validation set)
 
         ./run/run_preprocessing.sh
 
@@ -92,4 +97,4 @@ For evaluation, see `run/run_eval.sh` (evaluation on the dev dataset) and `run/r
 
 ## Acknowledgements
 
-We would like to thank Tao Yu, Yusen Zhang and Bo Pang for running evaluations on our submitted models. We are also grateful to the flexible semantic parser [TranX](https://github.com/pcyin/tranX) that inspires our works.
+We are grateful to the flexible semantic parser [TranX](https://github.com/pcyin/tranX) that inspires our works.

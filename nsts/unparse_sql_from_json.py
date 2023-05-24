@@ -153,7 +153,7 @@ if __name__ == '__main__':
     from eval.evaluation import evaluate, build_foreign_key_map_from_json
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql'], help='dataset name')
+    parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='dataset name')
     parser.add_argument('-s', dest='data_split', default='train', choices=['train', 'dev'], help='dataset split')
     parser.add_argument('-o', dest='output_path', help='filepath to the outputpath, if not specified, re-use dataset_path')
     args = parser.parse_args(sys.argv[1:])

@@ -8,14 +8,14 @@
 # col_unit: (agg_id, col_id, isDistinct(bool))
 # val_unit: (unit_op, col_unit1, col_unit2)
 # table_unit: (table_type, col_unit/sql)
-# cond_unit: (not_op, op_id, val_unit, val1, val2)
+# cond_unit: (agg_id, op_id, val_unit, val1, val2)
 # condition: [cond_unit1, 'and'/'or', cond_unit2, ...]
 # sql {
 #   'select': (isDistinct(bool), [(agg_id, val_unit), (agg_id, val_unit), ...])
 #   'from': {'table_units': [table_unit1, table_unit2, ...], 'conds': condition}
 #   'where': condition
 #   'groupBy': [col_unit1, col_unit2, ...]
-#   'orderBy': ('asc'/'desc', [val_unit1, val_unit2, ...])
+#   'orderBy': ('asc'/'desc', [(agg_id, val_unit1), （agg_id, val_unit2), ...])
 #   'having': condition
 #   'limit': None/limit value
 #   'intersect': None/sql
@@ -30,7 +30,7 @@ from nltk import word_tokenize
 CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
 JOIN_KEYWORDS = ('join', 'on', 'as')
 
-WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
+WHERE_OPS = ('between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'not in', 'not like')
 UNIT_OPS = ('none', '-', '+', "*", '/')
 AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
 TABLE_TYPE = {
@@ -62,6 +62,11 @@ class SchemaID():
         return self._idMap
 
 
+    @property
+    def table(self):
+        return self._table['table_names_original']
+
+
     def _table2columns(self, table):
         column_names_original = table['column_names_original']
         table_names_original = table['table_names_original']
@@ -79,6 +84,9 @@ class SchemaID():
         idMap = {'*': 0} # the first column should be wildcard *
         for i, (tab_id, col) in enumerate(column_names_original):
             if i == 0: continue
+            if tab_id < 0 and col.lower() == 'time_now':
+                idMap['time_now'] = i
+                continue
             idMap[table_names_original[tab_id].lower() + "." + col.lower()] = i
 
         for i, tab in enumerate(table_names_original):
@@ -251,7 +259,7 @@ def parse_col(toks, start_idx, tables_with_alias, schema, default_tables=None):
         
 
     tok = toks[start_idx]
-    if tok == "*":
+    if tok in ["*", "time_now"]:
         return start_idx + 1, schema.idMap[tok]
 
     if start_idx + 1 < len(toks) and toks[start_idx + 1] == '(': # special case in DuSQL, column 'GDP总计(亿)'
@@ -368,9 +376,13 @@ def parse_value(toks, start_idx, tables_with_alias, schema, default_tables=None)
     elif "\"" in toks[idx]: # token is a string value
         val = toks[idx]
         idx += 1
+    elif re.search(r'^[\d:\-~]+$', toks[idx].strip()): # date string
+        val = '"' + toks[idx].strip() + '"'
+        idx += 1
     else:
         try:
-            val = float(toks[idx])
+            float(toks[idx])
+            val = toks[idx]
             idx += 1
         except:
             end_idx = idx
@@ -392,8 +404,18 @@ def parse_condition(toks, start_idx, tables_with_alias, schema, default_tables=N
     idx = start_idx
     len_ = len(toks)
     conds = []
+    is_block = 0
 
     while idx < len_:
+        while idx < len_ and toks[idx] == '(':
+            is_block += 1
+            idx += 1
+
+        agg_id = AGG_OPS.index('none')
+        if idx < len_ and toks[idx] in AGG_OPS:
+            agg_id = AGG_OPS.index(toks[idx])
+            idx += 1
+
         idx, val_unit = parse_val_unit(toks, idx, tables_with_alias, schema, default_tables)
         not_op = False
         if toks[idx] == 'not':
@@ -401,10 +423,11 @@ def parse_condition(toks, start_idx, tables_with_alias, schema, default_tables=N
             idx += 1
 
         assert idx < len_ and toks[idx] in WHERE_OPS, "Error condition: idx: {}, tok: {}".format(idx, toks[idx])
-        op_id = WHERE_OPS.index(toks[idx])
+        cmp_op = 'not ' + toks[idx] if not_op else toks[idx]
+        op_id = WHERE_OPS.index(cmp_op)
         idx += 1
         val1 = val2 = None
-        if op_id == WHERE_OPS.index('between'):  # between..and... special case: dual values
+        if 'between' in cmp_op:  # between..and... special case: dual values
             idx, val1 = parse_value(toks, idx, tables_with_alias, schema, default_tables)
             assert toks[idx] == 'and'
             idx += 1
@@ -413,7 +436,11 @@ def parse_condition(toks, start_idx, tables_with_alias, schema, default_tables=N
             idx, val1 = parse_value(toks, idx, tables_with_alias, schema, default_tables)
             val2 = None
 
-        conds.append((not_op, op_id, val_unit, val1, val2))
+        conds.append((agg_id, op_id, val_unit, val1, val2))
+
+        while is_block > 0 and idx < len_ and toks[idx] == ")":
+            is_block -= 1
+            idx += 1
 
         if idx < len_ and (toks[idx] in CLAUSE_KEYWORDS or toks[idx] in (")", ";") or toks[idx] in JOIN_KEYWORDS):
             break
@@ -461,6 +488,7 @@ def parse_from(toks, start_idx, tables_with_alias, schema):
     default_tables = []
     table_units = []
     conds = []
+    last_table = None
 
     while idx < len_:
         isBlock = False
@@ -471,6 +499,7 @@ def parse_from(toks, start_idx, tables_with_alias, schema):
         if toks[idx] == 'select':
             idx, sql = parse_sql(toks, idx, tables_with_alias, schema)
             table_units.append((TABLE_TYPE['sql'], sql))
+            last_table = schema.table[sql['from']['table_units'][0][1]].lower()
         else:
             if idx < len_ and toks[idx] == 'join':
                 idx += 1  # skip join
@@ -487,6 +516,16 @@ def parse_from(toks, start_idx, tables_with_alias, schema):
         if isBlock:
             assert toks[idx] == ')'
             idx += 1
+
+        if idx < len_ and toks[idx] == 'a':
+            assert last_table is not None and last_table in schema.idMap, 'last_table should be a table name string'
+            tables_with_alias['a'] = last_table
+            idx += 2
+        elif idx < len_ and toks[idx] == 'b':
+            assert last_table is not None and last_table in schema.idMap, 'last_table should be a table name string'
+            tables_with_alias['b'] = last_table
+            idx += 1
+
         if idx < len_ and (toks[idx] in CLAUSE_KEYWORDS or toks[idx] in (")", ";")):
             break
 
@@ -542,8 +581,13 @@ def parse_order_by(toks, start_idx, tables_with_alias, schema, default_tables):
     idx += 1
 
     while idx < len_ and not (toks[idx] in CLAUSE_KEYWORDS or toks[idx] in (")", ";")):
+        agg_id = AGG_OPS.index("none")
+        if toks[idx] in AGG_OPS:
+            agg_id = AGG_OPS.index(toks[idx])
+            idx += 1
+
         idx, val_unit = parse_val_unit(toks, idx, tables_with_alias, schema, default_tables)
-        val_units.append(val_unit)
+        val_units.append((agg_id, val_unit))
         if idx < len_ and toks[idx] in ORDER_OPS:
             order_type = toks[idx]
             idx += 1
@@ -629,17 +673,10 @@ def parse_sql(toks, start_idx, tables_with_alias, schema):
 
 
 def get_sql(query, table):
-    # try:
     toks = tokenize(query)
     schema = SchemaID(table)
     tables_with_alias, toks = get_tables_with_alias(schema.schema, toks)
     _, sql = parse_sql(toks, 0, tables_with_alias, schema)
-    # except:
-        # print(query)
-        # print(toks)
-        # print(table['table_names'])
-        # print(list([c for _, c in table['column_names']]))
-        # exit(0)
     return sql
 
 
@@ -700,13 +737,9 @@ def parse_dataset(input_path, table_path):
                 ex['query'] = 'SELECT T1.company_type FROM Third_Party_Companies AS T1 JOIN Maintenance_Contracts AS T2 ON T1.company_id  =  T2.maintenance_contract_company_id ORDER BY T2.contract_end_date DESC LIMIT 1'
             elif 'WHERE T2.maxOccupancy  =  T1.Adults + T1.Kids' in ex['query']:
                 ex['query'] = ex['query'].replace('T2.maxOccupancy  =  T1.Adults + T1.Kids', 'T1.Adults + T1.Kids = T2.maxOccupancy')
-            try:
-                ex['sql'] = parser.parse(ex['query'], tables[ex['db_id']])
-            except:
-                error += 1
-                print(ex['query'])
-    print(error)
-    input_path = input_path + '.bak'
+
+            ex['sql'] = parser.parse(ex['query'], tables[ex['db_id']])
+
     with open(input_path, 'w') as of:
         json.dump(dataset, of, ensure_ascii=False, sort_keys=True, indent=4, separators=(',', ': '))
         print(f'Parsed dataset is serialized into file: {input_path}')

@@ -51,7 +51,7 @@ select = SelectColumn[col_unit col_unit:1,6](distinct distinct, col_unit col_uni
 
 from = FromTable[tab_id tab_id:1,7](tab_id tab_id, condition from)
         | FromSQL(sql from_sql)
-        | FromSQLTwo(sql from_sql, sql from_sql)
+        | FromSQLTwo(sql left_sql, sql right_sql)
 
 groupby = NoGroupBy
         | GroupByColumn[col_id col_id:1,3](col_id col_id, condition having)

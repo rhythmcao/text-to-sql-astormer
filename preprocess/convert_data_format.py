@@ -7,8 +7,7 @@
     change db_content.json to separate .sqlite files under database directory
 3. Dataset:
     db_id fix about 世博会/园博会
-    re-parse the original query into the same format as Spider-series datasets
-    use the new column ids (TIME_NOW -> 1 shift)
+    cmp operator == -> =
 """
 import os, sys, json, sqlite3
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -87,8 +86,8 @@ def convert_dusql_dataset():
 
 if __name__ == '__main__':
 
-    # convert_dusql_tables()
+    convert_dusql_tables()
 
-    # convert_dusql_database()
+    convert_dusql_database()
 
     convert_dusql_dataset()
