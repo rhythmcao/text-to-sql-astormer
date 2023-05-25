@@ -100,19 +100,6 @@ def get_schema(db):
     return schema
 
 
-def get_schema_from_json(fpath):
-    with open(fpath) as f:
-        data = json.load(f)
-
-    schema = {}
-    for entry in data:
-        table = str(entry['table'].lower())
-        cols = [str(col['column_name'].lower()) for col in entry['col_data']]
-        schema[table] = cols
-
-    return schema
-
-
 def tokenize(string):
     string = str(string)
     string = string.replace("\'", "\"")  # ensures all string values wrapped by "" problem??

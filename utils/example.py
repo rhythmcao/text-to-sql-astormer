@@ -58,7 +58,7 @@ class Example():
             if 'interaction' in ex: # multi-turn dataset
                 db = cls.tables[ex['database_id']]
                 if choice == 'train' and len(db['column_names']) > 100: continue # skip large dataset
-                if len(ex['interaction']) > 0 and 'question_id' not in ex['interaction'][0]:
+                if len(ex['interaction']) > 0 and 'question_ids' not in ex['interaction'][0]:
                     ex = cls.processor.pipeline(ex, db)
                 for turn in ex['interaction']:
                     turn['db_id'] = db['db_id']
@@ -69,7 +69,7 @@ class Example():
             else: # single-turn dataset
                 db = cls.tables[ex['db_id']]
                 if choice == 'train' and len(db['column_names']) > 100: continue # skip large dataset
-                if 'question_id' not in ex:
+                if 'question_ids' not in ex:
                     ex = cls.processor.pipeline(ex, db)
                 examples.append(cls(ex, db))
                 if DEBUG and len(examples) >= 100: break
@@ -89,7 +89,7 @@ class Example():
         self.ex, self.db, self.id = ex, db, id
         t = Example.tokenizer
 
-        self.question_id = ex['question_id']
+        self.question_id = ex['question_ids']
         self.question_len = len(self.question_id)
         self.separator_pos = ex.get('separator_pos', [self.question_len])
         self.table_token_len = db['table_token_len']

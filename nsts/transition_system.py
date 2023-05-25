@@ -128,7 +128,7 @@ class TransitionSystem(object):
 
         from nsts.value_processor import ValueProcessor
         self.db_dir = CONFIG_PATHS[dataset]['db_dir'] if db_dir is None else db_dir
-        self.value_processor = ValueProcessor(self.tokenizer, self.db_dir, eov_token=eov_token)
+        self.value_processor = ValueProcessor(dataset, self.tokenizer, self.db_dir, eov_token=eov_token)
 
         from nsts.parse_json_to_ast import ASTParser
         self.ast_parser = ASTParser(self.grammar, self.value_processor)
@@ -378,6 +378,8 @@ if __name__ == '__main__':
     import argparse
     from tqdm import tqdm
     from eval.evaluation import evaluate, build_foreign_key_map_from_json
+    from eval.evaluation_dusql import evaluate_dusql
+    from eval.evaluation_chase import evaluate_chase
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-d', dest='dataset', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='dataset name')
@@ -401,12 +403,14 @@ if __name__ == '__main__':
             for ex in dataset:
                 if 'interaction' in ex:
                     for turn in ex['interaction']:
-                        query = ' '.join(turn['query'].split('\n'))
-                        of.write(' '.join(query.split('\t')) + '\t' + ex['database_id'] + '\n')
+                        query = ' '.join(' '.join(turn['query'].split('\t')).split('\n'))
+                        of.write(query + '\t' + ex['database_id'] + '\n')
                     of.write('\n')
                 else:
-                    query = ' '.join(ex['query'].split('\n'))
-                    of.write(' '.join(query.split('\t')) + '\t' + ex['db_id'] + '\n')
+                    query = ' '.join(' '.join(ex['query'].split('\t')).split('\n'))
+                    if args.dataset == 'dusql':
+                        query = ex['question_id'] + '\t' + query
+                    of.write(query + '\t' + ex['db_id'] + '\n')
         return
 
 
@@ -435,6 +439,8 @@ if __name__ == '__main__':
                 else:
                     sql_seq = tranx.parse_sql_to_seq(ex['sql'], db)
                     recovered_sql, flag = tranx.unparse_sql_from_seq(sql_seq, db, ex)
+                if args.dataset == 'dusql':
+                    recovered_sql = ex['question_id'] + '\t' + recovered_sql
                 recovered_sqls.append(recovered_sql)
         return recovered_sqls
 
@@ -452,13 +458,18 @@ if __name__ == '__main__':
         output_path = os.path.join(data_dir, choice + '_eval.log')
         with open(output_path, 'w') as of:
             sys.stdout, old_print = of, sys.stdout
-            evaluate(gold_path, pred_path, db_dir, etype, kmaps, False, False, False)
+            if args.dataset == 'dusql':
+                evaluate_dusql(gold_path, pred_path, tables, kmaps)
+            elif args.dataset == 'chase':
+                evaluate_chase(gold_path, pred_path, tables, kmaps)
+            else:
+                evaluate(gold_path, pred_path, db_dir, etype, kmaps, False, False, False)
             sys.stdout = old_print
 
 
-    # create_gold_sql('train')
-    # train_sqls = sql_to_output_to_sql(train, args.output)
-    # evaluate_sqls(train_sqls, 'train', args.etype)
+    create_gold_sql('train')
+    train_sqls = sql_to_output_to_sql(train, args.output)
+    evaluate_sqls(train_sqls, 'train', args.etype)
 
 
     create_gold_sql('dev')

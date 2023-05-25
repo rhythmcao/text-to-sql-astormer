@@ -6,7 +6,7 @@ from nsts.value_processor import ValueProcessor, State
 from functools import wraps
 
 
-UNPARSER_DEBUG = False
+UNPARSER_DEBUG = True
 
 
 WHERE_OPS_MAPPING = {
@@ -71,8 +71,8 @@ class ASTUnParser():
 
 
     def retrieve_column_name(self, col_id: int, db: dict, tab_name: str = None):
-        if col_id == 0:
-            return '*'
+        if db['column_names_original'][col_id][0] < 0:
+            return db['column_names_original'][col_id][1]
         tab_id, col_name = db['column_names_original'][col_id]
         if tab_name is None:
             col_name = db['table_names_original'][tab_id] + '.' + col_name

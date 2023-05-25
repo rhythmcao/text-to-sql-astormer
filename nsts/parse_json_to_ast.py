@@ -145,8 +145,8 @@ class ASTParser():
             else: # in DuSQL, two SQLs in from clause
                 left_sql, right_sql = table_units[0][1], table_units[1][1]
                 ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_name('FromSQLTwo'))
-                ast_node[self.grammar.get_field_by_name('sql left_sql')][0].add_value(self.parse_sql(left_sql))
-                ast_node[self.grammar.get_field_by_name('sql right_sql')][0].add_value(self.parse_sql(right_sql))
+                ast_node[self.grammar.get_field_by_name('sql from_sql')][0].add_value(self.parse_sql(left_sql))
+                ast_node[self.grammar.get_field_by_name('sql from_sql')][1].add_value(self.parse_sql(right_sql))
         return ast_node
 
 

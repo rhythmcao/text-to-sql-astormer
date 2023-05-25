@@ -710,6 +710,12 @@ def parse_dataset(input_path, table_path):
                 ex['final']['query'] = ex['final']['query'].replace('AND (T1.allergy  =  "Milk" OR T1.allergy  =  "Eggs")', 'AND T1.allergy  =  "Milk" OR T1.allergy  =  "Eggs"')
             elif 'S: What IS the largest college?' in ex['final']['query']:
                 ex['final']['query'] = ex['final']['query'].replace('S: What IS the largest college?', '')
+            elif 'from 国家 AS T1 JOIN 大洲 AS T2 ON T1.所属洲id = T2.洲id where 洲名 = "北美洲" limit' in ex['final']['query']:
+                ex['final']['query'] = ex['final']['query'].replace('limit 1', '')
+            elif 'and 诗词名 = "声声慢·寻寻觅觅"' in ex['final']['query']:
+                ex['final']['query'] = ex['final']['query'].replace('and 诗词名 =', 'where 诗词名 =')
+            elif 'ON T2.公司id = T3.公司id and t3.名称 = "京东"' in ex['final']['query']:
+                ex['final']['query'] = ex['final']['query'].replace('and t3.名称 =', 'where t3.名称 =')
             
             ex['final']['sql'] = parser.parse(ex['final']['query'], tables[ex['database_id']])
             
@@ -726,7 +732,16 @@ def parse_dataset(input_path, table_path):
                     turn['query'] = turn['query'].replace('limit 3', 'ORDER BY count(*) limit 3')
                 elif 'countryid = 3 )' in turn['query'] and turn['query'].count('(') == 0:
                     turn['query'] = turn['query'].replace('countryid = 3 )', 'countryid = 3')
-                
+                elif '=  ""' in turn['query']:
+                    turn['query'] = turn['query'].replace('=  ""', '=  "null"')
+                elif 'from 国家 AS T1 JOIN 大洲 AS T2 ON T1.所属洲id = T2.洲id where 洲名 = "北美洲" limit' in turn['query']:
+                    turn['query'] = turn['query'].replace('limit 1', '')
+                elif 'select 品种代码 , count(*) from 狗 group by 品种代码 limit' in turn['query']:
+                    turn['query'] = turn['query'].replace('limit', 'order by count(*) desc limit')
+                elif 'and 诗词名 = "声声慢·寻寻觅觅"' in turn['query']:
+                    turn['query'] = turn['query'].replace('and 诗词名 =', 'where 诗词名 =')
+                elif 'ON T2.公司id = T3.公司id and t3.名称 = "京东"' in turn['query']:
+                    turn['query'] = turn['query'].replace('and t3.名称 =', 'where t3.名称 =')
                 turn['sql'] = parser.parse(turn['query'], tables[ex['database_id']])
         else:
             

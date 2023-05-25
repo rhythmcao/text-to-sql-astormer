@@ -9,14 +9,20 @@
     db_id fix about 世博会/园博会
     cmp operator == -> =
 """
-import os, sys, json, sqlite3
+import os, sys, json, shutil, sqlite3
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from nsts.transition_system import CONFIG_PATHS
 
 
 def convert_dusql_tables(path='data/dusql/db_schema.json'):
     with open(path, 'r') as inf:
-        tables = json.load(inf)
+        table_list = json.load(inf)
+        table_names, tables = set(), []
+        for table in table_list:
+            if table['db_id'] in table_names: continue
+            tables.append(table)
+            table_names.add(table['db_id'])
+        
     for db in tables:
         if 'table_names_original' not in db:
             db['table_names_original'] = db['table_names']
@@ -33,6 +39,7 @@ def convert_dusql_tables(path='data/dusql/db_schema.json'):
         db['column_types'] = ['text', 'time'] + db['column_types'][1:]
         db['primary_keys'] = [k + 1 for k in db['primary_keys']]
         db['foreign_keys'] = [[x + 1, y + 1] for x, y in db['foreign_keys']]
+
     with open(CONFIG_PATHS['dusql']['tables'], 'w') as of:
         json.dump(tables, of, ensure_ascii=False, indent=4)
     return tables
@@ -50,9 +57,13 @@ def convert_dusql_database(path='data/dusql/db_content.json'):
         if db_id == '中国交通':
             db['tables']['火车站']['header'][-1] = '投用日期备份'
 
-        db_path = os.path.join(output_dir, db_id + '.sqlite')
+        output_path = os.path.join(output_dir, db_id)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        db_path = os.path.join(output_path, db_id + '.sqlite')
         if os.path.exists(db_path): # delete already existing .sqlite file
             os.remove(db_path)
+
         con = sqlite3.connect(db_path)
         cur = con.cursor()
         for table_name in db['tables']:
@@ -84,6 +95,24 @@ def convert_dusql_dataset():
             json.dump(data, of, indent=4, ensure_ascii=False)
     return
 
+
+def convert_chase_database(path='data/chase/database'):
+    files = os.listdir(path)
+    for f in files:
+        if not f.endswith('.sqlite'): continue
+        prefix = os.path.splitext(f)[0]
+        output_path = os.path.join(path, prefix)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        
+        original_file = os.path.join(path, f)
+        output_file = os.path.join(output_path, f)
+        if os.path.exists(output_file):
+            os.remove(output_path)
+        shutil.copyfile(original_file, output_file)
+    return
+
+
 if __name__ == '__main__':
 
     convert_dusql_tables()
@@ -91,3 +120,5 @@ if __name__ == '__main__':
     convert_dusql_database()
 
     convert_dusql_dataset()
+
+    convert_chase_database()

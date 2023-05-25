@@ -165,15 +165,15 @@ class PreProcessor(object):
                 # add previous input user question in reverse order
                 prev_questions = [question] + prev_questions
                 turn['question'] = sep.join(prev_questions) # used in value-linking and postprocess for cased SQL value retrieval
-                turn['question_id'] = self.tokenizer.convert_tokens_to_ids(turn['utterance_toks']) + prev_question_ids
-                prev_question_ids = [sep_id] + turn['question_id']
+                turn['question_ids'] = self.tokenizer.convert_tokens_to_ids(turn['utterance_toks']) + prev_question_ids
+                prev_question_ids = [sep_id] + turn['question_ids']
                 # record the index of separators for different utterances (to construct question relations)
                 sep_pos = len(turn['utterance_toks'])
                 prev_sep_pos = turn['separator_pos'] = [sep_pos] + [idx + sep_pos + 1 for idx in prev_sep_pos]
         else:
             entry['question'] = re.sub(r'\s+', ' ', entry['question']).strip() # remove redundant whitespaces
             entry['question_toks'] = self.tokenizer.tokenize(entry['question'])
-            entry['question_id'] = self.tokenizer.convert_tokens_to_ids(entry['question_toks'])
+            entry['question_ids'] = self.tokenizer.convert_tokens_to_ids(entry['question_toks'])
         return entry
 
 
