@@ -1,11 +1,13 @@
 #coding=utf8
 import numpy as np
-import os, re, sqlite3, string, stanza, torch
+import os, re, string, stanza, torch, jieba
+from LAC import LAC
 from typing import List, Tuple
 from nltk.corpus import stopwords
 from itertools import product, combinations
 from nsts.relation_utils import ENCODER_RELATIONS, MAX_RELATIVE_DIST
-from preprocess.bridge_content_encoder import get_database_matches
+from preprocess.bridge_content_encoder import get_database_matches_en
+from preprocess.bridge_content_encoder_zh import get_database_matches_zh, STOPWORDS
 
 
 def get_question_relation(separator_pos: List[int] = []) -> torch.LongTensor:
@@ -41,14 +43,20 @@ class PreProcessor(object):
     value_separator = ' , '
     column_value_separator = ': '
 
-    def __init__(self, tokenizer, db_dir, encode_method, db_content=True):
+    def __init__(self, dataset, tokenizer, db_dir, encode_method, db_content=True):
         super(PreProcessor, self).__init__()
+        self.dataset = dataset
         self.tokenizer, self.db_dir, self.encode_method = tokenizer, db_dir, encode_method
-        self.stopwords = set(stopwords.words("english")) - {'no'}
-        use_gpu = torch.cuda.is_available()
-        self.nlp = stanza.Pipeline('en', processors='tokenize,pos,lemma', use_gpu=use_gpu)
         self.matches = {'table': {'partial': 0, 'exact': 0}, 'column': {'partial': 0, 'exact': 0, 'value': 0}}
         self.db_content, self.bridge_value = db_content, 0
+        self.stopwords = STOPWORDS | set(stopwords.words("english")) | set(string.punctuation + '，。！￥？（）《》、；·…‘’“”') - {'no'}
+        if dataset in ['dusql', 'chase']:
+            # self.word_level_tokenizer = lambda x: list(filter(lambda x: x.strip(), jieba.cut(x)))
+            tool = LAC(mode='seg')
+            self.word_level_tokenizer = lambda s: list(filter(lambda x: x.strip(), tool.run(s)))
+        else:
+            tool = stanza.Pipeline('en', processors='tokenize,pos,lemma', use_gpu=torch.cuda.is_available())
+            self.word_level_tokenizer = lambda x: [w.lemma.lower() for s in tool(x).sentences for w in s.words]
 
 
     def clear_statistics(self):
@@ -83,7 +91,7 @@ class PreProcessor(object):
         ]
         db['table_token_len'] = [len(toks) for toks in table_ids]
         db['table_id'] = sum(table_ids, []) # flatten all content
-        db['table_toks'] = [[w.lemma.lower() for s in self.nlp(name).sentences for w in s.words] for name in db['table_names']]
+        db['table_toks'] = [self.word_level_tokenizer(name) for name in db['table_names']]
 
         column_ids = [
             self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(db['column_types'][cid])) +
@@ -91,7 +99,7 @@ class PreProcessor(object):
             for cid in range(len(db['column_names']))
         ]
         db['column_token_id'] = column_ids # need to add instance-specific BRIDGE cells
-        db['column_toks'] = [[w.lemma.lower() for s in self.nlp(name).sentences for w in s.words] for _, name in db['column_names']]
+        db['column_toks'] = [self.word_level_tokenizer(name) for _, name in db['column_names']]
 
         column2table = list(map(lambda x: x[0], db['column_names'])) # from column id to table id
         table2columns = [[] for _ in range(len(db['table_names']))] # from table id to column ids list
@@ -177,6 +185,12 @@ class PreProcessor(object):
         return entry
 
 
+    def get_database_matches(self, question, tab_name, col_name, db_file, col_type=None):
+        if self.dataset in ['dusql', 'chase']:
+            return get_database_matches_zh(question, tab_name, col_name, db_file, col_type=col_type)
+        else: return get_database_matches_en(question, tab_name, col_name, db_file, col_type=col_type)
+
+
     def value_linking(self, entry: dict, db: dict, verbose: bool = False):
         # extract database content according the question in each turn
         db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
@@ -186,7 +200,7 @@ class PreProcessor(object):
             for cid, (tab_id, col_name) in enumerate(db['column_names_original']):
                 if tab_id < 0: continue
                 tab_name = db['table_names_original'][tab_id]
-                values = get_database_matches(question, tab_name, col_name, db_file)
+                values = self.get_database_matches(question, tab_name, col_name, db_file, col_type=db['column_types'][cid])
                 self.bridge_value += len(values)
                 if len(values) > 0:
                     matched_values[str(cid)] = values
@@ -253,33 +267,7 @@ class PreProcessor(object):
             return qs_mat, sq_mat, matched_pairs
 
 
-        def extract_nontext_cell_values(db: dict):
-            if not self.db_content: return [[] for _ in range(len(db['column_names']))]
-            cell_values = []
-            db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
-            try:
-                conn = sqlite3.connect(db_file)
-                conn.text_factory = lambda b: b.decode(errors='ignore')
-                conn.execute('pragma foreign_keys=ON')
-                for cid, (tid, col_name) in enumerate(db['column_names_original']):
-                    if cid == 0 or tid == -1 or db['column_types'][cid] == 'text' or 'id' in db['column_names'][cid][1].lower().split(' '):
-                        cell_values.append([])
-                        continue
-                    try:
-                        tab_name = db['table_names'][tid]
-                        cursor = conn.execute(f"SELECT DISTINCT \"{col_name}\" FROM \"{tab_name}\";")
-                        cells = cursor.fetchall()
-                        cells = [each[0] for each in cell_values]
-                        cells = [str(c) for c in cells] if len(cells) > 0 and type(cells[0]) != str else []
-                    except: cells = []
-                    cell_values.append(cells)
-                conn.close()
-            except:
-                print('Error while connecting database %s in path %s' % (db['db_id'], db_file))
-                cell_values = [[] for _ in range(len(db['column_names']))]
-            return cell_values
-
-        def question_cell_matching(index_span_pairs, question, cell_values, bridge_values, matching_infos=None):
+        def question_cell_matching(index_span_pairs, bridge_values, matching_infos=None):
             if len(matching_infos) == 3: qc_mat, cq_mat, matched_pairs = matching_infos
             else:
                 q_num, c_num = matching_infos
@@ -290,17 +278,17 @@ class PreProcessor(object):
             if not self.db_content: return qc_mat, cq_mat, matched_pairs
 
             qcv, cqv = ENCODER_RELATIONS.index('question-column-valuematch'), ENCODER_RELATIONS.index('column-question-valuematch')
-            for cid, cells in enumerate(cell_values):
+            for cid in bridge_values:
                 # re-use value-linking/BRIDGE information to save time
-                is_text, cells = (True, bridge_values[str(cid)]) if str(cid) in bridge_values else (False, cells)
+                cells = bridge_values[cid]
+                cid = int(cid)
                 for c in cells:
-                    if is_text or (not is_text and c in question):
-                        toks = self.tokenizer.tokenize(c)
-                        l, c = len(toks), normalize_toks(toks)
-                        for (start, end), phrase in filter(lambda x: l - 2 <= x[0][1] - x[0][0] <= l + 2, index_span_pairs):
-                            if phrase in c:
-                                qc_mat[range(start, end), cid], cq_mat[cid, range(start, end)] = qcv, cqv
-                                if verbose: matched_pairs['value'].append(str((column_names[cid], cid, phrase, start, end)))
+                    toks = self.tokenizer.tokenize(c)
+                    l, c = len(toks), normalize_toks(toks)
+                    for (start, end), phrase in filter(lambda x: l - 2 <= x[0][1] - x[0][0] <= l + 2, index_span_pairs):
+                        if phrase in c:
+                            qc_mat[range(start, end), cid], cq_mat[cid, range(start, end)] = qcv, cqv
+                            if verbose: matched_pairs['value'].append(str((column_names[cid], cid, phrase, start, end)))
             return qc_mat, cq_mat, matched_pairs
 
 
@@ -318,7 +306,6 @@ class PreProcessor(object):
 
 
         if 'interaction' in entry:
-            cell_values = extract_nontext_cell_values(db)
             t_num, c_num = len(table_names), len(column_names)
             prev_qs, prev_sq = np.zeros((0, t_num + c_num), dtype=dtype), np.zeros((t_num + c_num, 0), dtype=dtype)
             qtn, qcn = ENCODER_RELATIONS.index('question-table-nomatch'), ENCODER_RELATIONS.index('question-column-nomatch')
@@ -329,7 +316,7 @@ class PreProcessor(object):
                 index_span_pairs = extract_index_phrase_pairs(question_toks)
                 q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(index_span_pairs, table_names, table_toks, 'table',
                     matching_infos=(q_num, t_num))
-                q_col_mat, col_q_mat, column_matched_pairs = question_cell_matching(index_span_pairs, question, cell_values, turn['value'],
+                q_col_mat, col_q_mat, column_matched_pairs = question_cell_matching(index_span_pairs, turn['value'],
                     matching_infos=(q_num, c_num))
                 q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(index_span_pairs, column_names, column_toks, 'column',
                     matching_infos=(q_col_mat, col_q_mat, column_matched_pairs))
@@ -348,8 +335,7 @@ class PreProcessor(object):
             index_span_pairs = extract_index_phrase_pairs(question_toks)
             q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(index_span_pairs, table_names, table_toks, 'table',
                 matching_infos=(q_num, len(table_names)))
-            cell_values = extract_nontext_cell_values(db)
-            q_col_mat, col_q_mat, column_matched_pairs = question_cell_matching(index_span_pairs, question, cell_values, entry['value'],
+            q_col_mat, col_q_mat, column_matched_pairs = question_cell_matching(index_span_pairs, entry['value'],
                 matching_infos=(q_num, len(column_names)))
             q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(index_span_pairs, column_names, column_toks, 'column',
                 matching_infos=(q_col_mat, col_q_mat, column_matched_pairs))

@@ -698,7 +698,7 @@ def parse_dataset(input_path, table_path):
         dataset = json.load(f)
     with open(table_path, 'r') as f:
         tables = {db['db_id']: db for db in json.load(f)}
-    error = 0
+
     parser = JsonParser()
     for ex in dataset:
         if 'interaction' in ex: # conversational text-to-SQL
@@ -752,6 +752,8 @@ def parse_dataset(input_path, table_path):
                 ex['query'] = 'SELECT T1.company_type FROM Third_Party_Companies AS T1 JOIN Maintenance_Contracts AS T2 ON T1.company_id  =  T2.maintenance_contract_company_id ORDER BY T2.contract_end_date DESC LIMIT 1'
             elif 'WHERE T2.maxOccupancy  =  T1.Adults + T1.Kids' in ex['query']:
                 ex['query'] = ex['query'].replace('T2.maxOccupancy  =  T1.Adults + T1.Kids', 'T1.Adults + T1.Kids = T2.maxOccupancy')
+            elif 'T1.融资轮次 from 企业融资 as T1 join 企业 as T2 join 企业 as T3 on 企业融资.企业id = 企业.词条id and 投资公司.企业id = 企业.词条id order by T1.融资总额' in ex['query']:
+                ex['query'] = ex['query'].replace('企业 as T3 on', '投资公司 as T3 on').replace('T3.中文名', 'T2.中文名')
 
             ex['sql'] = parser.parse(ex['query'], tables[ex['db_id']])
 

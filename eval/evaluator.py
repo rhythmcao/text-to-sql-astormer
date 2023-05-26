@@ -2,13 +2,18 @@
 import json, sys, tempfile, os, asyncio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from eval.evaluation import build_foreign_key_map_from_json, evaluate
-from eval.evaluation import Evaluator as Engine
+from eval.evaluation_dusql import evaluate_dusql
+from eval.evaluation_chase import evaluate_chase
 from eval.exec_eval import postprocess, exec_on_db
 from nsts.transition_system import CONFIG_PATHS, TransitionSystem
 from nsts.parse_sql_to_json import get_sql
 
 
 class SurfaceChecker():
+
+    def __init__(self, dataset) -> None:
+        self.dataset = dataset
+
 
     def validity_check(self, sql: str, db: dict) -> bool:
         """ Check whether the given sql query is valid, including:
@@ -38,10 +43,21 @@ class SurfaceChecker():
         return self.sqlunit_check(sql, db)
 
 
+    def extract_table_ids_from_nested_sqls(self, sql: dict):
+        if sql['from']['table_units'][0][0] == 'sql':
+            table_ids = []
+            for _, nested in sql['from']['table_units']:
+                assert type(nested) == dict
+                table_ids += self.extract_table_ids_from_nested_sqls(nested)
+        else:
+            table_ids = list(map(lambda table_unit: table_unit[1], sql['from']['table_units']))
+        return table_ids
+
+
     def sqlunit_check(self, sql: dict, db: dict):
         if sql['from']['table_units'][0][0] == 'sql':
             if not self.sql_check(sql['from']['table_units'][0][1], db): return False
-            table_ids = []
+            table_ids = self.extract_table_ids_from_nested_sqls(sql)
         else:
             table_ids = list(map(lambda table_unit: table_unit[1], sql['from']['table_units']))
             if len(sql['from']['conds']) > 0: # predict FROM conditions
@@ -96,7 +112,7 @@ class SurfaceChecker():
     def orderby_check(self, orderby, table_ids: list, db: dict):
         if not orderby: return True
         orderby = orderby[1]
-        for val_unit in orderby:
+        for agg_id, val_unit in orderby:
             if not self.valunit_check(val_unit, table_ids, db): return False
         return True
 
@@ -107,7 +123,7 @@ class SurfaceChecker():
         2. column type is valid for AGG_OP
         """
         agg_id, col_id, _ = col_unit
-        if col_id == 0: return True
+        if col_id == 0 or (self.dataset == 'dusql' and col_id == 1): return True
         tab_id = db['column_names'][col_id][0]
         if tab_id not in table_ids: return False
         col_type = db['column_types'][col_id]
@@ -129,19 +145,20 @@ class SurfaceChecker():
         return True
 
 
-class ExecutionChecker():
+class SQLChecker():
 
-    def __init__(self, table_path: str, db_dir: str) -> None:
-        super(ExecutionChecker, self).__init__()
+    def __init__(self, dataset: str, table_path: str, db_dir: str) -> None:
+        super(SQLChecker, self).__init__()
+        self.dataset = dataset
         self.table_path, self.db_dir = table_path, db_dir
-        self.surface_checker = SurfaceChecker()
+        self.surface_checker = SurfaceChecker(self.dataset)
 
 
     def validity_check(self, sql: str, db: dict) -> bool:
         db_id = db['db_id']
         db_path = os.path.join(self.db_dir, db_id, db_id + ".sqlite")
         sql = postprocess(sql)
-        if not os.path.exists(db_path):
+        if not os.path.exists(db_path) or self.dataset in ['dusql', 'chase']:
             return self.surface_checker.validity_check(sql, db)
 
         flag, _ = asyncio.run(exec_on_db(db_path, sql))
@@ -158,7 +175,7 @@ class Evaluator():
         self.table_path = CONFIG_PATHS[dataset]['tables'] if table_path is None else table_path
         self.db_dir = CONFIG_PATHS[dataset]['db_dir'] if db_dir is None else db_dir
         self.kmaps = build_foreign_key_map_from_json(self.table_path)
-        self.engine, self.exec_checker = Engine(), ExecutionChecker(self.table_path, self.db_dir)
+        self.sql_checker = SQLChecker(self.dataset, self.table_path, self.db_dir)
 
 
     def change_database(self, db_dir):
@@ -197,7 +214,7 @@ class Evaluator():
                     pred_sqls.append(pred)
                     break
 
-                if flag and self.exec_checker.validity_check(pred, dataset[eid].db):
+                if flag and self.sql_checker.validity_check(pred, dataset[eid].db):
                     pred_sqls.append(pred)
                     break
                 cur_preds.append(pred)
@@ -213,22 +230,29 @@ class Evaluator():
             # write pred sqls
             prev_id = 0
             for s, ex in zip(pred_sqls, dataset):
-                prefix = '\n' if ex.id != prev_id else ''
+                prefix = '\n' if ex.turn_id != prev_id else ''
+                if self.dataset == 'dusql': s = ex.id + s
                 tmp_pred.write(prefix + s + '\n')
-                prev_id = ex.id
+                prev_id = ex.turn_id
             tmp_pred.flush()
 
             # write gold sqls
             prev_id = 0
             for ex in dataset:
-                prefix = '\n' if ex.id != prev_id else ''
-                tmp_ref.write(prefix + ex.query + '\t' + ex.db['db_id'] + '\n')
-                prev_id = ex.id
+                prefix = '\n' if ex.turn_id != prev_id else ''
+                query = ex.id + ex.query if self.dataset == 'dusql' else ex.query
+                tmp_ref.write(prefix + query + '\t' + ex.db['db_id'] + '\n')
+                prev_id = ex.turn_id
             tmp_ref.flush()
 
             of = open(output_path, 'w', encoding='utf8') if output_path is not None else tempfile.TemporaryFile('w+t')
             old_print, sys.stdout = sys.stdout, of
-            results = evaluate(tmp_ref.name, tmp_pred.name, self.db_dir, etype, self.kmaps, False, False, False)
+            if self.dataset == 'dusql':
+                results = evaluate_dusql(tmp_ref.name, tmp_pred.name, self.table_path, self.kmaps)
+            elif self.dataset == 'chase':
+                results = evaluate_chase(tmp_ref.name, tmp_pred.name, self.table_path, self.kmaps)
+            else:
+                results = evaluate(tmp_ref.name, tmp_pred.name, self.db_dir, etype, self.kmaps, False, False, False)
             sys.stdout = old_print
             of.close()
         return results
@@ -239,16 +263,16 @@ if __name__ == '__main__':
     import argparse
     from tqdm import tqdm
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql'], help='dataset name')
+    parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='dataset name')
     parser.add_argument('-s', dest='data_split', default='train', choices=['train', 'dev'])
     args = parser.parse_args(sys.argv[1:])
 
     error_count = 0
     tables = {db['db_id']: db for db in json.load(open(CONFIG_PATHS[args.dataset]['tables'], 'r'))}
-    checker = ExecutionChecker(CONFIG_PATHS[args.dataset]['tables'], CONFIG_PATHS[args.dataset]['db_dir'])
+    checker = SQLChecker(args.dataset, CONFIG_PATHS[args.dataset]['tables'], CONFIG_PATHS[args.dataset]['db_dir'])
     dataset = json.load(open(CONFIG_PATHS[args.dataset][args.data_split], 'r'))
 
-    for idx, ex in tqdm(enumerate(dataset), desc='Execution check', total=len(dataset)):
+    for idx, ex in tqdm(enumerate(dataset), desc='SQL check', total=len(dataset)):
         if 'interaction' in ex:
             db_id = ex['database_id']
             for turn in ex['interaction']:

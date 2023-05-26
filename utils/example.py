@@ -35,7 +35,7 @@ class Example():
         cls.tranx = TransitionSystem(cls.dataset, cls.plm, db_dir)
         cls.evaluator = Evaluator(cls.dataset, cls.tranx, table_path, db_dir)
         cls.grammar, cls.tokenizer = cls.tranx.grammar, cls.tranx.tokenizer
-        cls.processor = PreProcessor(cls.tokenizer, db_dir, cls.encode_method)
+        cls.processor = PreProcessor(cls.dataset, cls.tokenizer, db_dir, cls.encode_method)
         table_list = json.load(open(table_path, 'r'))
         cls.tables = {db['db_id']: db if 'table_id' in db else cls.processor.preprocess_database(db) for db in table_list}
         if cls.encode_method == 'rgatsql':
@@ -62,7 +62,7 @@ class Example():
                     ex = cls.processor.pipeline(ex, db)
                 for turn in ex['interaction']:
                     turn['db_id'] = db['db_id']
-                    cur_ex = cls(turn, db, idx)
+                    cur_ex = cls(turn, db, turn_id=idx)
                     if choice == 'train' and len(cur_ex.input_id) > 430: continue
                     examples.append(cur_ex)
                 if DEBUG and len(examples) >= 100: break
@@ -71,7 +71,8 @@ class Example():
                 if choice == 'train' and len(db['column_names']) > 100: continue # skip large dataset
                 if 'question_ids' not in ex:
                     ex = cls.processor.pipeline(ex, db)
-                examples.append(cls(ex, db))
+                idx = ex['question_id'] if cls.dataset == 'dusql' else 0
+                examples.append(cls(ex, db, id=idx))
                 if DEBUG and len(examples) >= 100: break
 
         return SQLDataset(examples)
@@ -84,9 +85,9 @@ class Example():
         cls.tranx.change_database(testsuite)
 
 
-    def __init__(self, ex: dict, db: dict, id: str = 0):
+    def __init__(self, ex: dict, db: dict, id: str = 0, turn_id: int = 0):
         super(Example, self).__init__()
-        self.ex, self.db, self.id = ex, db, id
+        self.ex, self.db, self.id, self.turn_id = ex, db, id, turn_id
         t = Example.tokenizer
 
         self.question_id = ex['question_ids']

@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     db_dir = CONFIG_PATHS[args.dataset]['db_dir']
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(CONFIG_PATHS['plm_dir'], args.tokenizer), add_prefix_space=True)
-    processor = PreProcessor(tokenizer, db_dir=db_dir, encode_method=args.encode_method)
+    processor = PreProcessor(args.dataset, tokenizer, db_dir=db_dir, encode_method=args.encode_method)
 
     table_path = CONFIG_PATHS[args.dataset]['tables']
     tables = process_tables(processor, json.load(open(table_path, 'r')), output_path=table_path)

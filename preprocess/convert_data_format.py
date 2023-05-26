@@ -32,6 +32,12 @@ def convert_dusql_tables(path='data/dusql/db_schema.json'):
         if db['db_id'] == '中国交通':
             db['column_names'][18] = [1, '投用日期备份']
             db['column_names_original'][18] = [1, '投用日期备份']
+        if db['db_id'] == '社交软件':
+            columns = [c for _, c in db['column_names']]
+            db['column_types'][columns.index('日活跃用户量')] = 'number'
+        if db['db_id'] == '中国文学奖':
+            columns = [c for _, c in db['column_names']]
+            db['column_types'][columns.index('字数')] = 'number'
 
         # add special column TIME_NOW after *
         db['column_names'] = [[-1, '*'], [-1, 'TIME_NOW']] + db['column_names'][1:]
@@ -108,7 +114,7 @@ def convert_chase_database(path='data/chase/database'):
         original_file = os.path.join(path, f)
         output_file = os.path.join(output_path, f)
         if os.path.exists(output_file):
-            os.remove(output_path)
+            os.remove(output_file)
         shutil.copyfile(original_file, output_file)
     return
 

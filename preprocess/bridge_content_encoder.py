@@ -224,13 +224,13 @@ def get_column_picklist(table_name: str, column_name: str, db_path: str) -> list
     return list(picklist)
 
 
-def get_database_matches(
+def get_database_matches_en(
     question: str,
     table_name: str,
     column_name: str,
     db_path: str,
     match_threshold: float = 0.85,
-    cells = None
+    cells = None, col_type = None
 ) -> List[str]:
     picklist = get_column_picklist(
         table_name=table_name, column_name=column_name, db_path=db_path
