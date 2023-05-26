@@ -227,7 +227,12 @@ class PreProcessor(object):
         table_toks, column_toks = db['table_toks'], db['column_toks']
 
         def normalize_toks(toks):
-            return self.tokenizer.convert_tokens_to_string(toks).lower().strip()
+            if self.dataset in ['dusql', 'chase']:
+                raw = self.tokenizer.convert_tokens_to_string(toks).lower().strip()
+                raw = re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + '|' + match_obj.group(2), raw)
+                return re.sub(r'\s+', '', raw).replace('|', ' ')
+            else:
+                return self.tokenizer.convert_tokens_to_string(toks).lower().strip()
 
 
         def extract_index_phrase_pairs(question_toks) -> List[Tuple[Tuple[int, int], str]]:

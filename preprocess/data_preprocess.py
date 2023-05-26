@@ -56,7 +56,8 @@ if __name__ == '__main__':
     processor = PreProcessor(args.dataset, tokenizer, db_dir=db_dir, encode_method=args.encode_method)
 
     table_path = CONFIG_PATHS[args.dataset]['tables']
-    tables = process_tables(processor, json.load(open(table_path, 'r')), output_path=table_path)
+    tables = json.load(open(table_path, 'r'))
+    tables = process_tables(processor, tables, output_path=table_path)
 
     data_split = ['train', 'dev'] if args.data_split == 'all' else [args.data_split]
     for split in data_split:

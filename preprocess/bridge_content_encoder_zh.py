@@ -1,13 +1,10 @@
 #coding=utf8
-import os, sys, math, re, sqlite3
+import sqlite3
 import functools
 from rouge import Rouge
 
 MAX_CELL_NUM = 4
 
-REPLACEMENT = dict(zip('０１２３４５６７８９％：．～幺（）：％‘’\'`—', '0123456789%:.~一():%“”""-'))
-
-NORM = lambda s: re.sub(r'[０１２３４５６７８９％：．～幺（）：％‘’\'`—]', lambda c: REPLACEMENT[c.group(0)], s)
 
 STOPWORDS = set(['哦', '哪位', '它', '后', '呗', '多大', '它们', '叫', '按', '其他', '低', '各', '吧', '这个', '不足', '不到', '前', '及', '比',
         '都是', '需要', '只', '之后', '给', '各个', '麻烦', '几个', '数', '中', '这边', '他', '有', '了', '跟', '那本书', '那么', '她们', 
@@ -24,21 +21,6 @@ STOPWORDS = set(['哦', '哪位', '它', '后', '呗', '多大', '它们', '叫'
         '哪里', '这部', '想要', '的', '我', '大于', '不少', '没'])
 
 
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
-
-
-def float_equal(val1, val2, multiplier=1):
-    val1, val2 = float(val1), float(val2)
-    if math.fabs(val1 - val2) < 1e-5: return True
-    elif math.fabs(val1 * multiplier - val2) < 1e-5 or math.fabs(val1 - val2 * multiplier) < 1e-6: return True
-    return False
-
-
 @functools.lru_cache(maxsize=2000, typed=False)
 def get_column_picklist(table_name: str, column_name: str, db_path: str) -> list:
     fetch_sql = "SELECT DISTINCT `{}` FROM `{}`".format(column_name, table_name)
@@ -47,8 +29,9 @@ def get_column_picklist(table_name: str, column_name: str, db_path: str) -> list
         conn = sqlite3.connect(db_path)
         conn.text_factory = lambda b: b.decode(errors='ignore')
         cursor = conn.cursor()
+        cursor.execute(fetch_sql)
         cell_values = cursor.fetchall()
-        picklist = [each[0] for each in cell_values if str(each[0]).strip() != '']
+        picklist = [str(each[0]).strip() for each in cell_values if str(each[0]).strip() != '']
         conn.close()
     except:
         # print('Error while connecting database in path %s' % (db_path))
@@ -60,44 +43,15 @@ ROUGE = Rouge(metrics=["rouge-1", "rouge-l"])
 ROUGE_SCORE = lambda pred, ref: ROUGE.get_scores(' '.join(list(pred)), ' '.join(list(ref)))[0]
 
 
-
-def get_database_matches(self, question: str, col_id: int, db: dict):
-    # extract candidate cell values for each column given the current question
-    tid, cname = db['column_names_original'][col_id][1]
-    tname = db['table_names_original'][tid]
-    cells = self.retrieve_cell_values(cname, tname, db['db_id'])
-    col_types = db['column_types']
-
-    question_toks = entry['uncased_question_toks']
-    numbers = extract_numbers_in_question(''.join(question_toks))
-    question = ''.join(filter(lambda s: s not in self.stopwords, question_toks))
-
-    def number_score(c, numbers):
-        if (not is_number(c)) or len(numbers) == 0: return 0.
-        return max([1. if float_equal(c, r) else 0.5 if float_equal(c, r, 100) or float_equal(c, r, 1e3) or float_equal(c, r, 1e4) or float_equal(c, r, 1e8) else 0. for r in numbers])
-
-    candidates = [[]] # map column_id to candidate values relevant to the question
-    for col_id, col_cells in enumerate(cells):
-        if col_id == 0: continue
-        tmp_candidates = []
-        for c in col_cells:
-            if c.startswith('item_') and c in entry['item_mapping']:
-                tmp_candidates.append(entry['item_mapping'][c])
-        if len(tmp_candidates) > 0:
-            candidates.append(tmp_candidates)
-            continue
-        if col_types[col_id] == 'binary': candidates.append([])
-        elif col_types[col_id] == 'time':
-            candidates.append([c for c in col_cells if c in question][:MAX_CELL_NUM])
-        elif col_types[col_id] == 'number':
-            scores = sorted(filter(lambda x: x[1] > 0, [(cid, number_score(c, numbers)) for cid, c in enumerate(col_cells)]), key=lambda x: - x[1])[:MAX_CELL_NUM]
-            if len(scores) > 1:
-                scores = scores[:1] + list(filter(lambda x: x[1] >= 0.6, scores[1:]))
-            candidates.append([normalize_cell_value(raw_cells[col_id][cid]) for cid, _ in scores])
-        else: # by default, text
-            scores = [(c, self.rouge_score(c, question)) for c in col_cells if 0 < len(c) < 50 and c != '.']
-            scores = sorted(filter(lambda x: x[1]['rouge-l']['f'] > 0, scores), key=lambda x: (- x[1]['rouge-l']['f'], - x[1]['rouge-1']['p']))[:MAX_CELL_NUM]
-            if len(scores) > 1: # at most two cells but the second one must have high rouge-1 precision
-                scores = scores[:1] + list(filter(lambda x: x[1]['rouge-1']['p'] >= 0.6, scores[1:]))
-            candidates.append([c for c, _ in scores])
+def get_database_matches_zh(question: str, tab_name: str, col_name: str, db_file: str, col_type='text'):
+    cells = get_column_picklist(tab_name, col_name, db_file)
+    if col_type == 'binary': candidates = []
+    elif col_type in ['time', 'number']:
+        candidates = [c for c in cells if c.lower() in question.lower()][:MAX_CELL_NUM]
+    else: # by default, text
+        scores = [(c, ROUGE_SCORE(c, question)) for c in cells if 0 < len(c) < 50 and c != '.']
+        scores = sorted(filter(lambda x: x[1]['rouge-l']['f'] >= 0.1, scores), key=lambda x: (- x[1]['rouge-l']['f'], - x[1]['rouge-1']['p']))[:MAX_CELL_NUM]
+        if len(scores) > 1: # at most two cells but the following one must have high rouge-1 precision
+            scores = scores[:1] + list(filter(lambda x: x[1]['rouge-1']['p'] >= 0.6, scores[1:]))
+        candidates = [c for c, _ in scores]
     return candidates
