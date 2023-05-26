@@ -183,7 +183,7 @@ class Evaluator():
         thus just evaluate on testsuite database after training is finished
         """
         self.db_dir = db_dir
-        self.exec_checker.db_dir = db_dir
+        self.sql_checker.db_dir = db_dir
 
 
     def accuracy(self, pred_sqls, dataset, output_path=None, etype='all'):
@@ -231,7 +231,7 @@ class Evaluator():
             prev_id = 0
             for s, ex in zip(pred_sqls, dataset):
                 prefix = '\n' if ex.turn_id != prev_id else ''
-                if self.dataset == 'dusql': s = ex.id + s
+                if self.dataset == 'dusql': s = ex.id + '\t' + s
                 tmp_pred.write(prefix + s + '\n')
                 prev_id = ex.turn_id
             tmp_pred.flush()
@@ -240,7 +240,7 @@ class Evaluator():
             prev_id = 0
             for ex in dataset:
                 prefix = '\n' if ex.turn_id != prev_id else ''
-                query = ex.id + ex.query if self.dataset == 'dusql' else ex.query
+                query = ex.id + '\t' + ex.query if self.dataset == 'dusql' else ex.query
                 tmp_ref.write(prefix + query + '\t' + ex.db['db_id'] + '\n')
                 prev_id = ex.turn_id
             tmp_ref.flush()
