@@ -44,7 +44,7 @@ class Example():
 
 
     @classmethod
-    def load_dataset(cls, choice='train', dataset_path=None, DEBUG=False):
+    def load_dataset(cls, choice='train', dataset_path=None, DEBUG=True):
         if dataset_path is None:
             assert choice in ['train', 'dev']
             choice = 'train' if DEBUG else choice

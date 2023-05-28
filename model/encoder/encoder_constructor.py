@@ -1,7 +1,7 @@
 #coding=utf8
 import torch.nn as nn
 from model.model_utils import Registrable
-from model.encoder.input_layer import EncoderInputLayer
+from model.encoder.input_layer import EncoderInputLayer, EncoderSWVInputLayer
 from model.encoder.hidden_layer import RGATHiddenLayer, IRNetHiddenLayer, NoneHiddenLayer
 from model.encoder.output_layer import EncoderOutputLayer
 
@@ -10,7 +10,7 @@ class Encoder(nn.Module):
 
     def __init__(self, args, tranx):
         super(Encoder, self).__init__()
-        self.input_layer = EncoderInputLayer(args, tranx)
+        self.input_layer = EncoderSWVInputLayer(args, tranx) if args.swv else EncoderInputLayer(args, tranx)
         self.hidden_layer = Registrable.by_name(args.encode_method)(args, tranx)
         self.output_layer = EncoderOutputLayer(args, tranx)
 

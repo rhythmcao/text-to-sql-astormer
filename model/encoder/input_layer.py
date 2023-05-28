@@ -21,7 +21,7 @@ class EncoderSWVInputLayer(nn.Module):
 
 
     def forward(self, batch):
-        questions, schemas = self.swv(batch.inputs["question_ids"]), self.swv(batch.input_ids["schema_ids"])
+        questions, schemas = self.swv(batch.inputs["question_ids"]), self.swv(batch.inputs["schema_ids"])
         questions, _ = rnn_wrapper(self.question_rnn, self.dropout_layer(questions), batch.question_lens)
         questions = questions.view(-1, questions.size(-1))[batch.question_mask.view(-1)]
         _, hiddens = rnn_wrapper(self.schema_rnn, self.dropout_layer(schemas), batch.schema_token_lens)
