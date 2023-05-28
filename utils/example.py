@@ -44,7 +44,7 @@ class Example():
 
 
     @classmethod
-    def load_dataset(cls, choice='train', dataset_path=None, DEBUG=True):
+    def load_dataset(cls, choice='train', dataset_path=None, DEBUG=False):
         if dataset_path is None:
             assert choice in ['train', 'dev']
             choice = 'train' if DEBUG else choice
@@ -94,12 +94,12 @@ class Example():
         self.question_len = len(self.question_id)
         self.separator_pos = ex.get('separator_pos', [self.question_len])
         self.table_token_len = db['table_token_lens']
-        column_toks = [
+        self.column_toks = [
             token_ids + ex['value_id'][str(cid)] if str(cid) in ex['value_id'] else token_ids
             for cid, token_ids in enumerate(db['column_token_ids'])
         ]
-        self.column_token_len = [len(toks) for toks in column_toks]
-        self.schema_id = sum(db['table_token_ids'], []) + sum(column_toks, [])
+        self.column_token_len = [len(toks) for toks in self.column_toks]
+        self.schema_id = sum(db['table_token_ids'], []) + sum(self.column_toks, [])
         self.schema_len = len(db['table_names']) + len(db['column_names'])
 
         # input_id: [CLS] question_toks [SEP] table_toks column_toks~(contain BRIDGE cell values) [SEP]

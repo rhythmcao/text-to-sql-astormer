@@ -45,8 +45,8 @@ def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
         batch.inputs = {"question_ids": None, "schema_ids": None}
         max_len = batch.question_lens.max().item()
         batch.inputs["question_ids"] = torch.tensor([ex.question_id + [pad_idx] * (max_len - len(ex.question_id)) for ex in ex_list], dtype=torch.long, device=device)
-        schema_ids = sum([ex.db['table_token_ids'] + ex.db['column_token_ids'] for ex in ex_list], [])
-        max_len = max(map(lambda toks: len(toks), schema_ids))
+        schema_ids = sum([ex.db['table_token_ids'] + ex.column_toks for ex in ex_list], [])
+        max_len = batch.schema_token_lens.max().item()
         batch.inputs["schema_ids"] = torch.tensor([toks + [pad_idx] * (max_len - len(toks)) for toks in schema_ids], dtype=torch.long, device=device)
 
     # for decoder memories
