@@ -25,9 +25,9 @@ class SQLDataset(Dataset):
 class Example():
 
     @classmethod
-    def configuration(cls, dataset, plm=None, encode_method='rgatsql', decode_method='ast',
+    def configuration(cls, dataset, swv=False, plm=None, encode_method='rgatsql', decode_method='ast',
             table_path=None, db_dir=None):
-        cls.dataset, cls.plm = dataset, plm
+        cls.dataset, cls.swv, cls.plm = dataset, swv, plm
         cls.encode_method, cls.decode_method = encode_method, decode_method
         table_path = CONFIG_PATHS[cls.dataset]['tables'] if table_path is None else table_path
         db_dir = CONFIG_PATHS[cls.dataset]['db_dir'] if db_dir is None else db_dir
@@ -37,7 +37,7 @@ class Example():
         cls.grammar, cls.tokenizer = cls.tranx.grammar, cls.tranx.tokenizer
         cls.processor = PreProcessor(cls.dataset, cls.tokenizer, db_dir, cls.encode_method)
         table_list = json.load(open(table_path, 'r'))
-        cls.tables = {db['db_id']: db if 'table_id' in db else cls.processor.preprocess_database(db) for db in table_list}
+        cls.tables = {db['db_id']: db if 'table_token_ids' in db else cls.processor.preprocess_database(db) for db in table_list}
         if cls.encode_method == 'rgatsql':
             for db_id in cls.tables:
                 cls.tables[db_id]['relation'] = torch.tensor(cls.tables[db_id]['relation'], dtype=torch.long)
@@ -93,13 +93,13 @@ class Example():
         self.question_id = ex['question_ids']
         self.question_len = len(self.question_id)
         self.separator_pos = ex.get('separator_pos', [self.question_len])
-        self.table_token_len = db['table_token_len']
+        self.table_token_len = db['table_token_lens']
         column_toks = [
             token_ids + ex['value_id'][str(cid)] if str(cid) in ex['value_id'] else token_ids
-            for cid, token_ids in enumerate(db['column_token_id'])
+            for cid, token_ids in enumerate(db['column_token_ids'])
         ]
         self.column_token_len = [len(toks) for toks in column_toks]
-        self.schema_id = db['table_id'] + sum(column_toks, [])
+        self.schema_id = sum(db['table_token_ids'], []) + sum(column_toks, [])
         self.schema_len = len(db['table_names']) + len(db['column_names'])
 
         # input_id: [CLS] question_toks [SEP] table_toks column_toks~(contain BRIDGE cell values) [SEP]

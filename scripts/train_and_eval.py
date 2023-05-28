@@ -35,7 +35,7 @@ is_master = (rank == 0)
 
 
 # initialize model
-Example.configuration(args.dataset, plm=args.plm, encode_method=args.encode_method, decode_method=args.decode_method)
+Example.configuration(args.dataset, swv=args.swv, plm=args.plm, encode_method=args.encode_method, decode_method=args.decode_method)
 model = Registrable.by_name('text2sql')(args, Example.tranx).to(device)
 if args.read_model_path:
     check_point = torch.load(open(os.path.join(args.read_model_path, 'model.bin'), 'rb'), map_location=device)

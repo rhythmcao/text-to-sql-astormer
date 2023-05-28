@@ -18,31 +18,37 @@ def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
     batch = Batch(ex_list, device)
     encode_method, pad_idx = Example.encode_method, Example.tokenizer.pad_token_id
 
+    batch.question_lens = torch.tensor([ex.question_len for ex in ex_list], dtype=torch.long, device=device)
     batch.schema_token_lens = torch.tensor(sum([ex.table_token_len + ex.column_token_len for ex in ex_list], []), dtype=torch.long, device=device)
     batch.schema_lens = torch.tensor([ex.schema_len for ex in ex_list], dtype=torch.long, device=device)
 
-    # prepare inputs for pretrained models
-    batch.inputs = {"input_ids": None, "attention_mask": None, "token_type_ids": None, "position_ids": None}
-    input_lens = [len(ex.input_id) for ex in ex_list]
-    max_len = max(input_lens)
-    input_ids = [ex.input_id + [pad_idx] * (max_len - len(ex.input_id)) for ex in ex_list]
-    batch.inputs["input_ids"] = torch.tensor(input_ids, dtype=torch.long, device=device)
-    attention_mask = [[1] * l + [0] * (max_len - l) for l in input_lens]
-    batch.inputs["attention_mask"] = torch.tensor(attention_mask, dtype=torch.float, device=device)
-    token_type_ids = [ex.segment_id + [0] * (max_len - len(ex.segment_id)) for ex in ex_list]
-    batch.inputs["token_type_ids"] = torch.tensor(token_type_ids, dtype=torch.long, device=device)
-    position_ids = [get_position_ids(ex, shuffle=train) + [0] * (max_len - len(ex.input_id)) for ex in ex_list]
-    batch.inputs["position_ids"] = torch.tensor(position_ids, dtype=torch.long, device=device)
+    if not Example.swv:
+        # prepare inputs for pretrained models
+        batch.inputs = {"input_ids": None, "attention_mask": None, "token_type_ids": None, "position_ids": None}
+        input_lens = [len(ex.input_id) for ex in ex_list]
+        max_len = max(input_lens)
+        input_ids = [ex.input_id + [pad_idx] * (max_len - len(ex.input_id)) for ex in ex_list]
+        batch.inputs["input_ids"] = torch.tensor(input_ids, dtype=torch.long, device=device)
+        attention_mask = [[1] * l + [0] * (max_len - l) for l in input_lens]
+        batch.inputs["attention_mask"] = torch.tensor(attention_mask, dtype=torch.float, device=device)
+        token_type_ids = [ex.segment_id + [0] * (max_len - len(ex.segment_id)) for ex in ex_list]
+        batch.inputs["token_type_ids"] = torch.tensor(token_type_ids, dtype=torch.long, device=device)
+        position_ids = [get_position_ids(ex, shuffle=train) + [0] * (max_len - len(ex.input_id)) for ex in ex_list]
+        batch.inputs["position_ids"] = torch.tensor(position_ids, dtype=torch.long, device=device)
 
-    # extract representations after plm
-    plm_question_mask = [ex.plm_question_mask + [0] * (max_len - len(ex.input_id)) for ex in ex_list]
-    batch.plm_question_mask = torch.tensor(plm_question_mask, dtype=torch.bool, device=device)
-    plm_schema_mask = [ex.plm_schema_mask + [0] * (max_len - len(ex.input_id)) for ex in ex_list]
-    batch.plm_schema_mask = torch.tensor(plm_schema_mask, dtype=torch.bool, device=device)
+        # extract representations after plm
+        plm_question_mask = [ex.plm_question_mask + [0] * (max_len - len(ex.input_id)) for ex in ex_list]
+        batch.plm_question_mask = torch.tensor(plm_question_mask, dtype=torch.bool, device=device)
+        plm_schema_mask = [ex.plm_schema_mask + [0] * (max_len - len(ex.input_id)) for ex in ex_list]
+        batch.plm_schema_mask = torch.tensor(plm_schema_mask, dtype=torch.bool, device=device)
+    else:
+        batch.inputs = {"question_ids": None, "schema_ids": None}
+        max_len = batch.question_lens.max().item()
+        batch.inputs["question_ids"] = torch.tensor([ex.question_id + [pad_idx] * (max_len - len(ex.question_id)) for ex in ex_list], dtype=torch.long, device=device)
+        batch.inputs["schema_ids"] = torch.tensor(sum([ex.db['table_token_ids'] + ex.db['column_token_ids'] for ex in ex_list], []), dtype=torch.long, device=device)
 
     # for decoder memories
     if encode_method == 'rgatsql':
-        batch.question_lens = torch.tensor([ex.question_len for ex in ex_list], dtype=torch.long, device=device)
         batch.mask = lens2mask(batch.question_lens + batch.schema_lens)
         max_len = batch.mask.size(-1)
         batch.select_schema_mask = torch.tensor([ex.select_schema_mask + [0] * (max_len - len(ex.select_schema_mask)) for ex in ex_list], dtype=torch.bool, device=device)

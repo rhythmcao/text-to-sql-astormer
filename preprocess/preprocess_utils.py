@@ -85,20 +85,20 @@ class PreProcessor(object):
 
     def preprocess_database(self, db: dict):
         table_prefix = self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize('table'))
-        table_ids = [
+        table_token_ids = [
             table_prefix + self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(table_name))
             for table_name in db['table_names']
         ]
-        db['table_token_len'] = [len(toks) for toks in table_ids]
-        db['table_id'] = sum(table_ids, []) # flatten all content
+        db['table_token_lens'] = [len(toks) for toks in table_token_ids]
+        db['table_token_ids'] = table_token_ids
         db['table_toks'] = [self.word_level_tokenizer(name) for name in db['table_names']]
 
-        column_ids = [
+        column_token_ids = [
             self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(db['column_types'][cid])) +
             self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(db['column_names'][cid][1]))
             for cid in range(len(db['column_names']))
         ]
-        db['column_token_id'] = column_ids # need to add instance-specific BRIDGE cells
+        db['column_token_ids'] = column_token_ids # need to add instance-specific BRIDGE cells
         db['column_toks'] = [self.word_level_tokenizer(name) for _, name in db['column_names']]
 
         column2table = list(map(lambda x: x[0], db['column_names'])) # from column id to table id

@@ -28,7 +28,7 @@ params.lazy_load = True
 device = set_torch_device(args.device)
 
 # load dataset and preprocess
-Example.configuration(params.dataset, plm=params.plm, encode_method=params.encode_method, decode_method=params.decode_method,
+Example.configuration(params.dataset, swv=params.swv, plm=params.plm, encode_method=params.encode_method, decode_method=params.decode_method,
     table_path=args.table_path, db_dir=args.db_dir)
 dataset = Example.load_dataset(dataset_path=args.dataset_path)
 eval_collate_fn = Batch.get_collate_fn(device=device, train=False)
@@ -53,7 +53,8 @@ print('Start writing predicted SQLs to file %s' % (args.output_path))
 with open(args.output_path, 'w', encoding='utf8') as of:
     prev_id = 0
     for s, ex in zip(pred_sqls, dataset):
-        prefix = '\n' if ex.id != prev_id else ''
+        prefix = '\n' if ex.turn_id != prev_id else ''
+        if Example.dataset == 'dusql': s = ex.id + '\t' + s
         of.write(prefix + s + '\n')
-        prev_id = ex.id
+        prev_id = ex.turn_id
 print('Evaluation costs %.4fs .' % (time.time() - start_time))

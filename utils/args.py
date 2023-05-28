@@ -10,6 +10,7 @@ def init_args(params=sys.argv[1:]):
     arg_parser = add_argument_decoder(arg_parser)
     args = arg_parser.parse_args(params)
     if args.decode_method == 'ast': args.no_select_schema = False
+    if args.swv: assert args.encode_method != 'none', 'GNN should be adopted for swv!'
     return args
 
 
@@ -43,6 +44,7 @@ def add_argument_base(arg_parser):
 def add_argument_encoder(arg_parser):
     # Encoder Hyperparams
     arg_parser.add_argument('--encode_method', choices=['irnet', 'rgatsql', 'none'], default='rgatsql', help='which graph encoder to use')
+    arg_parser.add_argument('--swv', action='store_true', default=False, help='use static word vectors instead of PLM')
     arg_parser.add_argument('--plm', type=str, help='pretrained model name in Huggingface')
     arg_parser.add_argument('--encoder_num_layers', default=8, type=int, help='num of GNN layers in encoder')
     arg_parser.add_argument('--encoder_hidden_size', default=256, type=int, help='size of GNN layers hidden states')

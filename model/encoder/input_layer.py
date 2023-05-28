@@ -7,6 +7,33 @@ from model.model_utils import rnn_wrapper
 from nsts.transition_system import CONFIG_PATHS
 
 
+class EncoderSWVInputLayer(nn.Module):
+
+    def __init__(self, args, tranx):
+        super(EncoderSWVInputLayer, self).__init__()
+        plm = os.path.join(CONFIG_PATHS['plm_dir'], args.plm)
+        config = AutoConfig.from_pretrained(plm)
+        args.embed_size = config.embedding_size if hasattr(config, 'embedding_size') else config.hidden_size
+        self.swv = AutoModel.from_config(config).embeddings.word_embeddings if getattr(args, 'lazy_load', False) else AutoModel.from_pretrained(plm).embeddings.word_embeddings
+        self.question_rnn = nn.LSTM(args.embed_size, args.encoder_hidden_size // 2, num_layers=1, bidirectional=True, batch_first=True)
+        self.schema_rnn = nn.LSTM(args.embed_size, args.encoder_hidden_size // 2, num_layers=1, bidirectional=True, batch_first=True)
+        self.dropout_layer = nn.Dropout(p=args.dropout)
+
+
+    def forward(self, batch):
+        questions, schemas = self.swv(batch.inputs["question_ids"]), self.swv(batch.input_ids["schema_ids"])
+        questions, _ = rnn_wrapper(self.question_rnn, self.dropout_layer(questions), batch.question_lens)
+        questions = questions.view(-1, questions.size(-1))[batch.question_mask.view(-1)]
+        _, hiddens = rnn_wrapper(self.schema_rnn, self.dropout_layer(schemas), batch.schema_token_lens)
+        schemas = hiddens[0].transpose(0, 1).contiguous().view(-1, questions.size(-1))
+        outputs = []
+        for q, s in zip(questions.split(batch.question_lens.tolist(), 0), schemas.split(batch.schema_lens.tolist(), 0)):
+            padding = q.new_zeros((batch.mask.size(1) - q.size(0) - s.size(0), q.size(-1)))
+            outputs.append(torch.cat([q, s, padding], dim=0))
+        outputs = torch.stack(outputs, dim=0) # bs x max_len x hs
+        return outputs
+
+
 class EncoderInputLayer(nn.Module):
 
     def __init__(self, args, tranx):

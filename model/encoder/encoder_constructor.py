@@ -18,5 +18,8 @@ class Encoder(nn.Module):
     def forward(self, batch):
         outputs = self.input_layer(batch)
         outputs = self.hidden_layer(outputs, batch)
-        word_embed = self.input_layer.plm.embeddings.word_embeddings.weight
+        if hasattr(self.input_layer, 'plm'):
+            word_embed = self.input_layer.plm.embeddings.word_embeddings.weight
+        else:
+            word_embed = self.input_layer.swv.weight
         return self.output_layer(outputs, batch, word_embed)
