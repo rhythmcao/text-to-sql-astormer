@@ -664,9 +664,9 @@ def evaluate_chase(gold, predict, table, kmaps):
             p_sql_value = rebuild_sql_col(p_valid_col_units, p_sql_value, kmap)
             exec_score = evaluator.eval_exact_match(p_sql_value, g_sql_value)
             turn_scores['exec'].append(exec_score)
-            scores[hardness]['exec'] += 1
-            scores[turn_id]['exec'] += 1
-            scores['all']['exec'] += 1
+            scores[hardness]['exec'] += exec_score
+            scores[turn_id]['exec'] += exec_score
+            scores['all']['exec'] += exec_score
 
             partial_scores = evaluator.partial_scores
             for type_ in partial_types:
