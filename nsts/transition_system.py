@@ -1,5 +1,5 @@
 #coding=utf-8
-import sys, os, json, torch
+import sys, os, json, torch, re
 import numpy as np
 from collections import deque
 from dataclasses import dataclass
@@ -330,6 +330,7 @@ class TransitionSystem(object):
         vocab_size = self.tokenizer.vocab_size
         table_names = table['table_names_original']
         column_names = list(map(lambda x: x[1] if x[0] == -1 else table_names[x[0]] + '.' + x[1], table['column_names_original']))
+        column_names_trunc = list(map(lambda x: x[1], table['column_names_original']))
         masked_tokens, replacements = [], []
         mask_token, mask_token_id = self.tokenizer.pad_token, self.tokenizer.pad_token_id
         for tok in tokens:
@@ -339,6 +340,9 @@ class TransitionSystem(object):
             elif tok in column_names:
                 masked_tokens.append(mask_token)
                 replacements.append(column_names.index(tok) + vocab_size + len(table_names))
+            elif (tok.startswith('a.') or tok.startswith('b.')) and tok.lstrip('ab.') in column_names_trunc:
+                masked_tokens.append(mask_token)
+                replacements.append(column_names_trunc.index(tok.lstrip('ab.')) + vocab_size + len(table_names))
             else: masked_tokens.append(tok)
         masked_query = ' '.join(masked_tokens).replace(' ' + mask_token, mask_token)
         masked_token_ids = self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(masked_query))
@@ -358,7 +362,7 @@ class TransitionSystem(object):
             try:
                 if token_ids[0] == self.tokenizer.cls_token_id: token_ids = token_ids[1:]
                 if token_ids[-1] == self.tokenizer.sep_token_id: token_ids = token_ids[:-1]
-                column_names = list(map(lambda x: table_names[x[0]] + '.' + x[1] if x[1] != '*' else '*', db['column_names_original']))
+                column_names = list(map(lambda x: x[1] if x[0] == -1 else table_names[x[0]] + '.' + x[1], db['column_names_original']))
                 replacements = map(lambda idx: column_names[idx - vocab_size - len(table_names)] if idx >= vocab_size + len(table_names) else table_names[idx - vocab_size], filter(lambda idx: idx >= vocab_size, token_ids))
                 mask_token, mask_token_id = self.tokenizer.pad_token, self.tokenizer.pad_token_id
                 masked_token_ids = list(map(lambda idx: mask_token_id if idx >= vocab_size else idx, token_ids))
@@ -367,8 +371,7 @@ class TransitionSystem(object):
                     masked_query = masked_query.replace(mask_token, ' ' + repl + ' ', 1)
 
                 if self.dataset in ['dusql', 'chase']:
-                    masked_query = re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + '|' + match_obj.group(2), masked_query)
-                    masked_query = re.sub(r'\s+', '', masked_query).replace('|', ' ')
+                    masked_query = fix_chinese_whitespaces_in_seq(masked_query)
                 return masked_query, True
             except:
                 return f'select * from {table_names[0]}', False
@@ -377,9 +380,39 @@ class TransitionSystem(object):
         if len(tokens) == 0: return f'select * from {table_names[0]}', False
         token_string = self.tokenizer.convert_tokens_to_string(tokens)
         if self.dataset in ['dusql', 'chase']:
-            token_string = re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + '|' + match_obj.group(2), token_string)
-            token_string = re.sub(r'\s+', '', token_string).replace('|', ' ')
+            token_string = fix_chinese_whitespaces_in_seq(token_string)
         return token_string, True
+
+
+def fix_chinese_whitespaces_in_seq(string):
+    tokens = string.split(' ')
+    new_tokens, nested, tmp_val = [], False, ''
+
+    for tok in tokens:
+        if tok == '': continue
+        if tok == '"':
+            nested = not nested
+            if nested: # start a new string value
+                tmp_val = ''
+            else: # end a string value
+                new_tokens.append('"' + tmp_val + '"')
+                tmp_val = ''
+        else:
+            if nested:
+                if re.search(r'^[a-zA-Z0-9]', tok) and re.search(r'[a-zA-Z0-9]$', tmp_val):
+                    tmp_val = tmp_val + ' ' + tok
+                else: tmp_val = tmp_val + tok
+            else: # out of the string value
+                new_tokens.append(tok)
+
+    string = ' '.join(new_tokens)
+    replacements = {'> =': '>=', '< =': '<=', '! =': '!='}
+    for pat, repl in replacements.items():
+        string = string.replace(pat, repl)
+    re_replacements = {r'\s*\.\s*': '.'} # some tokenization errors, e.g., 0.44 -> 0. 44
+    for pat, repl in re_replacements.items():
+        string = re.sub(pat, repl, string)
+    return string.strip()
 
 
 if __name__ == '__main__':
