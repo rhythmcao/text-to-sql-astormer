@@ -116,6 +116,7 @@ class TransitionSystem(object):
 
     def __init__(self, dataset: str, tokenizer: str = None, db_dir: str = None):
         super(TransitionSystem, self).__init__()
+        self.dataset = dataset
         from nsts.asdl import ASDLGrammar
         self.grammar = ASDLGrammar.from_filepath(CONFIG_PATHS['grammar'])
         from nsts.relation_utils import ASTRelation
@@ -364,13 +365,21 @@ class TransitionSystem(object):
                 masked_query = self.tokenizer.convert_tokens_to_string(self.tokenizer.convert_ids_to_tokens(masked_token_ids))
                 for repl in replacements:
                     masked_query = masked_query.replace(mask_token, ' ' + repl + ' ', 1)
+
+                if self.dataset in ['dusql', 'chase']:
+                    masked_query = re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + '|' + match_obj.group(2), masked_query)
+                    masked_query = re.sub(r'\s+', '', masked_query).replace('|', ' ')
                 return masked_query, True
             except:
                 return f'select * from {table_names[0]}', False
 
         tokens = self.tokenizer.convert_ids_to_tokens(token_ids, skip_special_tokens=True)
         if len(tokens) == 0: return f'select * from {table_names[0]}', False
-        return self.tokenizer.convert_tokens_to_string(tokens), True
+        token_string = self.tokenizer.convert_tokens_to_string(tokens)
+        if self.dataset in ['dusql', 'chase']:
+            token_string = re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + '|' + match_obj.group(2), token_string)
+            token_string = re.sub(r'\s+', '', token_string).replace('|', ' ')
+        return token_string, True
 
 
 if __name__ == '__main__':

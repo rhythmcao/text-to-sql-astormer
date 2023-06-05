@@ -10,16 +10,16 @@ encoder_hidden_size=512
 encoder_num_layers=2
 num_heads=8
 
-decode_method=ast
-decode_order=random
-decoder_cell=transformer
+decode_method=seq
+decode_order=dfs+l2r
+decoder_cell=lstm
 decoder_hidden_size=512
 decoder_num_layers=2
 
 dropout=0.2
 batch_size=20
 test_batch_size=50
-grad_accumulate=2
+grad_accumulate=1
 lr=2e-4
 l2=0.1
 layerwise_decay=0.8

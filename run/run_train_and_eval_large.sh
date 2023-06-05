@@ -4,7 +4,7 @@ seed=999
 device=0
 ddp='' # --ddp
 
-plm=electra-large-discriminator
+plm=$2 #electra-large-discriminator
 encode_method=rgatsql
 encoder_hidden_size=512
 encoder_num_layers=2
