@@ -83,11 +83,11 @@ class AbstractSyntaxTree(object):
         if sb is None:
             is_root = True
             sb = StringIO()
-            # sb.write('sql-root := ')
-            sb.write('{\\tt sql} $\\rightarrow$ ')
+            sb.write('sql-root := ')
+            # sb.write('{\\tt sql} $\\rightarrow$ ') # to_latex_code
 
-        # sb.write('Node[j=%d, %s]\n' % (self.created_time, self.production.__repr__()))
-        sb.write('Node[ $j=%d$, %s ]\n' % (self.created_time, self.production.to_string()))
+        sb.write('Node[j=%d, %s]\n' % (self.created_time, self.production.__repr__()))
+        # sb.write('Node[ $j=%d$, %s ]\n' % (self.created_time, self.production.to_latex_code()))
 
         field_with_timestep = sorted([(field, min([rf.realized_time for rf in self.fields[field]])) for field in self.fields], key=lambda x: x[1])
         indent += 4
@@ -95,8 +95,8 @@ class AbstractSyntaxTree(object):
             rfs = sorted(self.fields[field], key=lambda x: x.realized_time)
             if isinstance(field.type, ASDLCompositeType): # sub-trees
                 for rf in rfs:
-                    # prefix = ' ' * indent + '%s-%s := ' % (rf.type.name, rf.name)
-                    prefix = '\qquad' * indent + ' %s $\\rightarrow$ ' % (rf.type.to_string())
+                    prefix = ' ' * indent + '%s-%s := ' % (rf.type.name, rf.name)
+                    # prefix = '\qquad' * indent + ' %s $\\rightarrow$ ' % (rf.type.to_latex_code())
                     sb.write(prefix)
                     if rf.value is not None:
                         rf.value.to_string(sb, indent, tables, columns, tokenizer)
@@ -106,21 +106,21 @@ class AbstractSyntaxTree(object):
                     if rf.value is not None:
                         if rf.type.name == 'tab_id':
                             val = tables[int(rf.value)] if tables is not None else str(rf.value)
-                            value = 'Leaf[ $j=%d$, {\\tt tab\_id} := %s ]' % (rf.realized_time, val)
+                            # value = 'Leaf[ $j=%d$, {\\tt tab\_id} := %s ]' % (rf.realized_time, val) # to_latex_code
                         elif rf.type.name == 'col_id':
                             if int(rf.value) == 0: val = '*'
                             else:
                                 tab = tables[columns[int(rf.value)][0]] + '.' if tables is not None and columns is not None else ''
                                 col = columns[int(rf.value)][1] if columns is not None else str(rf.value)
                                 val = tab + col
-                            value = 'Leaf[ $j=%d$, {\\tt col\_id} := %s ]' % (rf.realized_time, val)
+                            # value = 'Leaf[ $j=%d$, {\\tt col\_id} := %s ]' % (rf.realized_time, val) # to_latex_code
                         else:
                             val = tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(rf.value)) if tokenizer is not None else str(rf.value)
-                            value = "Leaf[ $j=%d$, {\\tt tok\_id} := ``%s'' ]" % (rf.realized_time, val)
-                        # value = 'Leaf[j=%d, val=%s]' % (rf.realized_time, val)
+                            # value = "Leaf[ $j=%d$, {\\tt tok\_id} := ``%s'' ]" % (rf.realized_time, val) # to_latex_code
+                        value = 'Leaf[j=%d, val=%s]' % (rf.realized_time, val)
                     else: value = '?'
-                    # serial = ' ' * indent + '%s-%s := %s\n' % (rf.type.name, rf.name, value)
-                    serial = '\qquad' * indent + ' %s $\\rightarrow$ %s\n' % (rf.type.to_string(), value)
+                    serial = ' ' * indent + '%s-%s := %s\n' % (rf.type.name, rf.name, value)
+                    # serial = '\qquad' * indent + ' %s $\\rightarrow$ %s\n' % (rf.type.to_latex_code(), value) # to_latex_code
                     sb.write(serial)
 
         if is_root:

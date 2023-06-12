@@ -230,8 +230,8 @@ class ASDLProduction(object):
         return '%s -> %s' % (self.type.__repr__(plain=True), self.constructor.__repr__(plain=True))
 
 
-    def to_string(self):
-        return '%s := %s' % (self.type.to_string(), self.constructor.to_string())
+    def to_latex_code(self):
+        return '%s := %s' % (self.type.to_latex_code(), self.constructor.to_latex_code())
 
 
 class ASDLConstructor(object):
@@ -273,8 +273,8 @@ class ASDLConstructor(object):
         else: return 'Constructor(%s)' % plain_repr
 
 
-    def to_string(self):
-        return '%s(%s)' % (self.name, ', '.join(f.to_string() for f in self.fields for _ in range(self.fields[f])))
+    def to_latex_code(self):
+        return '%s(%s)' % (self.name, ', '.join(f.to_latex_code() for f in self.fields for _ in range(self.fields[f])))
 
 
 class Field(object):
@@ -304,8 +304,8 @@ class Field(object):
         if plain: return plain_repr
         else: return 'Field(%s)' % plain_repr
 
-    def to_string(self):
-        return self.type.to_string()
+    def to_latex_code(self):
+        return self.type.to_latex_code()
 
 
     def __str__(self):
@@ -340,7 +340,7 @@ class ASDLType(object):
         else: return '%s(%s)' % (self.__class__.__name__, plain_repr)
 
 
-    def to_string(self):
+    def to_latex_code(self):
         return '{\\tt %s}' % (self.name)
 
 
