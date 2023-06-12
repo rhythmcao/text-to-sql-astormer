@@ -186,4 +186,5 @@ class Batch():
 
 
     def get_parent_state_ids(self, t):
-        return [a[t].parent_timestep if t < len(a) else 0 for a in self.action_infos]
+        # return [a[t].parent_timestep if t < len(a) else 0 for a in self.action_infos] # only used for DFS+L2R
+        return [next((idx for idx, x in enumerate(a[:t]) if x.timestep == a[t].parent_timestep), None) if t < len(a) else 0 for a in self.action_infos] # generalize to other decoding orders 
