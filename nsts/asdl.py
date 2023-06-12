@@ -230,6 +230,10 @@ class ASDLProduction(object):
         return '%s -> %s' % (self.type.__repr__(plain=True), self.constructor.__repr__(plain=True))
 
 
+    def to_string(self):
+        return '%s := %s' % (self.type.to_string(), self.constructor.to_string())
+
+
 class ASDLConstructor(object):
 
     number2word = ('', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
@@ -269,6 +273,10 @@ class ASDLConstructor(object):
         else: return 'Constructor(%s)' % plain_repr
 
 
+    def to_string(self):
+        return '%s(%s)' % (self.name, ', '.join(f.to_string() for f in self.fields for _ in range(self.fields[f])))
+
+
 class Field(object):
 
     def __init__(self, name, type):
@@ -295,6 +303,9 @@ class Field(object):
         plain_repr = '%s %s' % (self.type.__repr__(plain=True), self.name)
         if plain: return plain_repr
         else: return 'Field(%s)' % plain_repr
+
+    def to_string(self):
+        return self.type.to_string()
 
 
     def __str__(self):
@@ -327,6 +338,10 @@ class ASDLType(object):
         plain_repr = self.name
         if plain: return plain_repr
         else: return '%s(%s)' % (self.__class__.__name__, plain_repr)
+
+
+    def to_string(self):
+        return '{\\tt %s}' % (self.name)
 
 
     def copy(self):
