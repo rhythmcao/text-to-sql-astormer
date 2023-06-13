@@ -84,7 +84,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
         decode_method = Example.decode_method
 
         if decode_method == 'ast':
-            sample_size = 4
+            sample_size = kwargs.pop('sample_size', 1)
             # action_ids, production_ids, field_ids, depth_ids, decoder_relations
             if sample_size > 1 and 'random' in decode_order:
                 action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order)

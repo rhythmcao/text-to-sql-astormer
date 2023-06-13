@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.example import Example
 from utils.batch import Batch
 from torch.utils.data import DataLoader
+from nsts.transition_system import GenerateTokenAction
 
 
 def decode(model, dataset, output_path=None, batch_size=64, beam_size=5, n_best=5, decode_order='dfs+l2r', etype='all', device=None):
@@ -27,7 +28,7 @@ def decode(model, dataset, output_path=None, batch_size=64, beam_size=5, n_best=
     return evaluator.accuracy(pred_sqls, dataset, output_path, etype=etype)
 
 
-def print_ast(model, dataset, output_path, beam_size=5, n_best=5, decode_order='random', device=None, **kwargs):
+def print_ast(model, dataset, output_path, beam_size=5, n_best=5, decode_order='dfs+random', device=None, **kwargs):
     evaluator, decode_method = Example.evaluator, Example.decode_method
     assert 'random' in decode_order and decode_method == 'ast', "There is no need to analyze the canonical order or token-based method."
     model.eval()
@@ -58,37 +59,38 @@ def print_ast(model, dataset, output_path, beam_size=5, n_best=5, decode_order='
     return count
 
 
-def record_heatmap(model, dataset, output_path=None, batch_size=64, decode_order='dfs+l2r', device=None):
+def record_heatmap(model, dataset, output_path=None, decode_order='dfs+l2r', device=None):
     decode_method = Example.decode_method
-    assert decode_order == 'dfs+l2r' and decode_method == 'ast', "We use the default traversal order and only analyze self-attention of ASTormer."
+    assert decode_method == 'ast', "We only analyze target side self-attention of ASTormer."
     model.eval()
     tranx, decode_method = Example.tranx, Example.decode_method
     eval_collate_fn = Batch.get_collate_fn(device=device, train=True, decode_order=decode_order)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=False, collate_fn=eval_collate_fn)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, drop_last=False, collate_fn=eval_collate_fn)
 
     results, count = [], 0
+    id2relation = tranx.ast_relation.id2relation
     with torch.no_grad():
         for cur_batch in data_loader:
+            ex = cur_batch[0]
+            tgt_len = len(ex.action)
+            if len(ex.action) > 20 or any(action.action_type == GenerateTokenAction for action in ex.action): continue
+            count += 1
+
             _, attention_weights = model(cur_batch, return_attention_weights=True) # use forward function instead of parse
-            for idx in range(len(cur_batch)):
-                ex = cur_batch[idx]
-                if ex.ast.size > 20: continue
-                count += 1
-                s = len(ex.action)
-                pad_idx = tranx.ast_relation.DECODER_RELATIONS.index('padding-padding')
-                rel_mask = torch.tril(torch.ones((s, s), dtype=torch.bool))
-                relation_ids = ex.decoder_relation.masked_fill(~rel_mask, pad_idx).tolist()
-                relation = [[tranx.ast_relation.id2relation[rid] for rid in rid_list] for rid_list in relation_ids]
-                records = {
-                    'db_id': ex.ex['db_id'],
-                    'question': ex.ex['question'],
-                    'query': ex.query,
-                    'ast': ex.ast,
-                    'action': ex.action,
-                    'relation': relation,
-                    'weight': attention_weights[idx][:len(ex.action), :len(ex.action)].tolist()
-                }
-                results.append(records)
+            rel_mask = torch.tril(torch.ones((tgt_len, tgt_len), dtype=torch.bool))
+            pad_idx = tranx.ast_relation.DECODER_RELATIONS.index('padding-padding')
+            relation = cur_batch.decoder_relations[0].masked_fill(~ rel_mask, pad_idx).tolist()
+            relation = [[id2relation[rid] for rid in rid_list] for rid_list in relation]
+            records = {
+                'db_id': ex.ex['db_id'], # database id~(string)
+                'question': ex.ex['question'], # question~(string)
+                'query': ex.query, # SQL query~(string)
+                'ast': ex.ast, # object of class AbstractSyntaxTree, see nsts/asdl_ast.py
+                'action': cur_batch.action_infos[0], # list of class ActionInfos, see nsts/transition_system.py
+                'relation': relation, # tgt_len x tgt_len list, each entry is a relation name~(string), e.g., `0-0', `0-1', see DECODER_RELATIONS in nsts/relation_utils.py
+                'weight': attention_weights[0][:, :, :len(ex.action), :len(ex.action)].numpy() # numpy float array, Layer x Head x tgt_len x tgt_len
+            }
+            results.append(records)
 
     pickle.dump(results, open(output_path, 'wb'))
     torch.cuda.empty_cache()

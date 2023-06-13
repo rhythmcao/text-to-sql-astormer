@@ -61,7 +61,7 @@ if not args.testing:
     batch_size = args.batch_size // (world_size * args.grad_accumulate)
 
     # set training dataloader
-    train_collate_fn = Batch.get_collate_fn(device=device, train=True, decode_order=args.decode_order)
+    train_collate_fn = Batch.get_collate_fn(device=device, train=True, decode_order=args.decode_order) #, sample_size=4
     if args.ddp:
         train_sampler = DistributedSampler(train_dataset)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, shuffle=False, collate_fn=train_collate_fn)
@@ -167,7 +167,7 @@ if is_master:
 
     # print('Start recording attention heatmaps on the dev dataset ...... ')
     # start_time = time.time()
-    # count = record_heatmap(base_model, dev_dataset, os.path.join(exp_path, 'dev.heatmap'), batch_size=args.test_batch_size, decode_order=args.decode_order, device=device)
+    # count = record_heatmap(base_model, dev_dataset, os.path.join(exp_path, 'dev.heatmap'), decode_order=args.decode_order, device=device)
     # logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Record {count:d} heatmaps among {len(dev_dataset):d} samples ;")
 
 

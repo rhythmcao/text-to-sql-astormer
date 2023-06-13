@@ -51,8 +51,15 @@ class DecoupledAstormer(nn.Module):
             tgt_k = tgt_k.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             tgt_v = tgt_v.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             tgt_mask = (cross_rel_ids != self.pad_idx) & future_mask
+    
+        attention_weights = []
         for i in range(self.num_layers):
-            o = self.decoder_layers[i](o, prev, kv, (self_k, self_v, self_mask), (tgt_k, tgt_v, tgt_mask), enc_mask, (return_attention_weights & i == self.num_layers - 1))
+            o = self.decoder_layers[i](o, prev, kv, (self_k, self_v, self_mask), (tgt_k, tgt_v, tgt_mask), enc_mask, return_attention_weights)
+            if return_attention_weights:
+                o, attention_weight = o
+                attention_weights.append(attention_weight)
+        if return_attention_weights:
+            return o, torch.stack(attention_weights, dim=1)
         return o
 
 
@@ -105,11 +112,9 @@ class DecoupledAstormerLayer(nn.Module):
             if mask is not None:
                 e = e.masked_fill_(~ mask.unsqueeze(1), -1e10) # bs x head x l x l
             a = torch.softmax(e, dim=-1)
-            if return_attention_weights:
-                attention_weights.append(a.mean(dim=1)) # take the average of attention weights from different heads
             o = torch.matmul(a.unsqueeze(-2), V_rel).squeeze(-2) # bs x head x l x dim
             o = o.transpose(1, 2).contiguous().view(bs, l, -1)
-            return self.self_layer_norm(q + self.self_o_affine(o))
+            return self.self_layer_norm(q + self.self_o_affine(o)), a
 
         def calculate_self_attention(q, mask):
             bs, l = q.size(0), q.size(1)
@@ -122,7 +127,7 @@ class DecoupledAstormerLayer(nn.Module):
                 e = e.masked_fill_(~ mask.unsqueeze(-1), -1e10)
             a = torch.softmax(e, dim=2)
             o = torch.einsum('btsh,bshd->bthd', a, V).reshape(bs, l, -1)
-            return self.self_layer_norm(q + self.self_o_affine(o))
+            return self.self_layer_norm(q + self.self_o_affine(o)), a
 
         def calculate_tgt_attention_with_relation(q, kv, rel_k, rel_v, mask):
             bs, l = q.size(0), q.size(1)
@@ -137,8 +142,6 @@ class DecoupledAstormerLayer(nn.Module):
             if mask is not None:
                 e = e.masked_fill_(~ mask.unsqueeze(1), -1e10) # bs x head x l x l
             a = torch.softmax(e, dim=-1)
-            if return_attention_weights:
-                attention_weights.append(a.mean(dim=1)) # take the average of attention weights from different heads
             o = torch.matmul(a.unsqueeze(-2), V_rel).squeeze(-2) # bs x head x l x dim
             o = o.transpose(1, 2).contiguous().view(bs, l, -1)
             return self.tgt_layer_norm(q + self.tgt_o_affine(o))
@@ -167,8 +170,8 @@ class DecoupledAstormerLayer(nn.Module):
 
         self_k, self_v, self_mask = self_rels
         if self_k is not None:
-            o = calculate_self_attention_with_relation(q, self_k, self_v, self_mask)
-        else: o = calculate_self_attention(q, self_mask)
+            o, attention_weights = calculate_self_attention_with_relation(q, self_k, self_v, self_mask)
+        else: o, attention_weights = calculate_self_attention(q, self_mask)
 
         tgt_k, tgt_v, tgt_mask = tgt_rels
         if tgt_k is not None:
@@ -176,7 +179,7 @@ class DecoupledAstormerLayer(nn.Module):
         else: o = calculate_tgt_attention(o, prev, tgt_mask)
 
         o = calculate_cross_attention(o, kv, enc_mask)
-        if return_attention_weights: return self.feedforward(o), attention_weights[0]
+        if return_attention_weights: return self.feedforward(o), attention_weights
         return self.feedforward(o)
 
 
@@ -211,8 +214,15 @@ class Astormer(nn.Module):
             rel_k = rel_k.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             rel_v = rel_v.unsqueeze(1).expand(-1, self.num_heads, -1, -1, -1)
             rel_mask = (rel_ids != self.pad_idx) & rel_mask
+
+        attention_weights = []
         for i in range(self.num_layers):
-            o = self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask, (return_attention_weights & i == self.num_layers - 1))
+            o = self.decoder_layers[i](o, kv, rel_k, rel_v, rel_mask, enc_mask, return_attention_weights)
+            if return_attention_weights:
+                o, attention_weight = o
+                attention_weights.append(attention_weight)
+        if return_attention_weights:
+            return o, torch.stack(attention_weights, dim=1)
         return o
 
 
@@ -245,7 +255,6 @@ class AstormerLayer(nn.Module):
             rel_mask: relation mask, torch.BoolTensor, bs x tgt_len x tgt_len, 0 -> padding relation, o.w. specific relations
             enc_mask: mask for input, torch.BoolTensor, bs x src_len, 0 -> padding position, o.w. used position
         """
-        attention_weights = []
         def calculate_self_attention_with_relation(q):
             bs, l = q.size(0), q.size(1)
             # bs x head x l x dim
@@ -258,11 +267,9 @@ class AstormerLayer(nn.Module):
             e = (torch.matmul(Q.unsqueeze(3), K_rel.transpose(-1, -2)) / self.scale_factor).squeeze(-2)
             e = e.masked_fill_(~ rel_mask.unsqueeze(1), -1e10) # bs x head x l x l
             a = torch.softmax(e, dim=-1)
-            if return_attention_weights:
-                attention_weights.append(a.mean(dim=1)) # take the average of attention weights from different heads
             o = torch.matmul(a.unsqueeze(-2), V_rel).squeeze(-2) # bs x head x l x dim
             o = o.transpose(1, 2).contiguous().view(bs, l, -1)
-            return self.self_layer_norm(q + self.self_o_affine(o))
+            return self.self_layer_norm(q + self.self_o_affine(o)), a
 
         def calculate_self_attention(q):
             bs, l = q.size(0), q.size(1)
@@ -274,7 +281,7 @@ class AstormerLayer(nn.Module):
             e = e.masked_fill_(~ rel_mask.unsqueeze(-1), -1e10)
             a = torch.softmax(e, dim=2)
             o = torch.einsum('btsh,bshd->bthd', a, V).reshape(bs, l, -1)
-            return self.self_layer_norm(q + self.self_o_affine(o))
+            return self.self_layer_norm(q + self.self_o_affine(o)), a
 
         def calculate_cross_attention(q, kv):
             Q = self.cross_q_affine(self.dropout_layer(q)).reshape(q.size(0), q.size(1), self.num_heads, -1)
@@ -287,9 +294,9 @@ class AstormerLayer(nn.Module):
             o = torch.einsum('btsh,bshd->bthd', a, V).reshape(q.size(0), q.size(1), -1)
             return self.cross_layer_norm(q + self.cross_o_affine(o))
 
-        o = calculate_self_attention_with_relation(q) if rel_k is not None else calculate_self_attention(q)
+        o, attention_weights = calculate_self_attention_with_relation(q) if rel_k is not None else calculate_self_attention(q)
         o = calculate_cross_attention(o, kv)
-        if return_attention_weights: return self.feedforward(o), attention_weights[0] 
+        if return_attention_weights: return self.feedforward(o), attention_weights
         return self.feedforward(o)
 
 
