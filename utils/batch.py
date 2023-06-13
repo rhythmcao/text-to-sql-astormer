@@ -84,9 +84,14 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
         decode_method = Example.decode_method
 
         if decode_method == 'ast':
+            sample_size = 4
             # action_ids, production_ids, field_ids, depth_ids, decoder_relations
-            action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order)
-                if decode_order != 'dfs+l2r' else (ex.action, ex.decoder_relation) for ex in ex_list]))
+            if sample_size > 1 and 'random' in decode_order:
+                action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order)
+                    for ex in ex_list for _ in range(sample_size)]))
+            else:
+                action_infos_list, relations_list = list(zip(*[Example.tranx.get_outputs_from_ast(action_infos=ex.action_info, relations=ex.decoder_relation, order=decode_order)
+                    if decode_order != 'dfs+l2r' else (ex.action, ex.decoder_relation) for ex in ex_list]))
             max_action_num = max([len(action) for action in action_infos_list])
             vocab_size, grammar_size = Example.tokenizer.vocab_size, len(Example.grammar.prod2id) + 1
             table_nums = [len(ex.db['table_names']) for ex in ex_list]
@@ -99,7 +104,7 @@ def from_example_list_decoder(ex_list, batch, device='cpu', train=True, decode_o
                 elif action_info.action_type == SelectTableAction:
                     return vocab_size + grammar_size + action_info.action_id
                 elif action_info.action_type == SelectColumnAction:
-                    return vocab_size + grammar_size + table_nums[eid] + action_info.action_id
+                    return vocab_size + grammar_size + table_nums[eid // sample_size] + action_info.action_id
                 else: return action_info.action_id
 
             def get_decoder_relation(relation):

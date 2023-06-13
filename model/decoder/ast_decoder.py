@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from model.decoder.ast_beam import ASTBeam
 from model.decoder.decoder_cell import DecoupledAstormer, Astormer, LSTM, ONLSTM
-from model.model_utils import Registrable, MultiHeadAttention, PointerNetwork, TiedLinearClassifier, make_relative_positions
+from model.model_utils import Registrable, MultiHeadAttention, PointerNetwork, TiedLinearClassifier, make_relative_positions, tile
 from nsts.transition_system import ApplyRuleAction, SelectTableAction, SelectColumnAction, GenerateTokenAction, TransitionSystem
 
 
@@ -60,6 +60,11 @@ class ASTDecoder(nn.Module):
         encodings, generator_memory, mask = memories['encodings'], memories['generator'], memories['mask']
         schema_memory, schema_mask, max_schema_num = memories['schema'], memories['schema_mask'], memories['schema'].size(1)
         copy_memory, copy_ids, copy_mask = memories['copy'], memories['copy_ids'], memories['copy_mask']
+        sample_size = batch.ast_actions.size(0) // encodings.size(0)
+        if sample_size > 1:
+            encodings, mask = tile(encodings, sample_size), tile(mask, sample_size)
+            schema_memory, schema_mask = tile(schema_memory, sample_size), tile(schema_mask, sample_size)
+            copy_memory, copy_ids, copy_mask = tile(copy_memory, sample_size), tile(copy_ids, sample_size), tile(copy_mask, sample_size)
 
         # previous action embedding, depending on which action_type
         vocab_size, grammar_size = self.tranx.tokenizer.vocab_size, len(self.grammar.prod2id) + 1
@@ -75,7 +80,7 @@ class ASTDecoder(nn.Module):
             prev_inputs.masked_scatter_(decoder_token_mask.unsqueeze(-1), token_input)
         rule_input = F.embedding((prev_actions - vocab_size).masked_select(decoder_rule_mask), self.production_embed.weight)
         prev_inputs.masked_scatter_(decoder_rule_mask.unsqueeze(-1), rule_input)
-        shift_schema_ids = prev_actions - vocab_size - grammar_size + max_schema_num * torch.arange(len(batch), device=encodings.device).unsqueeze(1)
+        shift_schema_ids = prev_actions - vocab_size - grammar_size + max_schema_num * torch.arange(prev_actions.size(0), device=encodings.device).unsqueeze(1)
         schema_input = schema_memory.contiguous().view(-1, schema_memory.size(-1))[shift_schema_ids.masked_select(decoder_schema_mask)]
         prev_inputs.masked_scatter_(decoder_schema_mask.unsqueeze(-1), schema_input)
         prev_inputs = torch.cat([init_actions, prev_inputs], dim=1) # right shift one
@@ -145,7 +150,13 @@ class ASTDecoder(nn.Module):
                 cur_logprobs = torch.gather(cur_logprobs, dim=-1, index=batch.ast_actions[:, t].unsqueeze(-1))
                 logprobs = torch.cat([logprobs, cur_logprobs], dim=1)
 
-        loss = - logprobs.masked_select(batch.tgt_mask).sum()
+        if sample_size > 1:
+            sum_logprobs = torch.sum(logprobs.masked_fill_(~ batch.tgt_mask, 0.), dim=-1).view(-1, sample_size)
+            loss = - (torch.max(sum_logprobs, dim=1)[0]).sum() # choose the optimal sampling
+            # loss = - sum_logprobs.sum() # take sum of different samples
+            # loss = - torch.mean(sum_logprobs, dim=1).sum() # take average of different samples
+        else:
+            loss = - logprobs.masked_select(batch.tgt_mask).sum()
         if return_attention_weights:
             return loss, attention_weights
         return loss
