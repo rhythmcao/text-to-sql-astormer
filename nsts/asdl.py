@@ -341,7 +341,7 @@ class ASDLType(object):
 
 
     def to_latex_code(self):
-        return '{\\tt %s}' % (self.name)
+        return '{\\tt %s}' % (self.name.replace('_', '\_'))
 
 
     def copy(self):

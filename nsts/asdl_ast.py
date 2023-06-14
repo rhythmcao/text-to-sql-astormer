@@ -87,7 +87,7 @@ class AbstractSyntaxTree(object):
             # sb.write('{\\tt sql} $\\rightarrow$ ') # to_latex_code
 
         sb.write('Node[j=%d, %s]\n' % (self.created_time, self.production.__repr__()))
-        # sb.write('Node[ $j=%d$, %s ]\n' % (self.created_time, self.production.to_latex_code()))
+        # sb.write('Node[ $j=%d$, %s ]\\\\\n' % (self.created_time, self.production.to_latex_code()))
 
         field_with_timestep = sorted([(field, min([rf.realized_time for rf in self.fields[field]])) for field in self.fields], key=lambda x: x[1])
         indent += 4
@@ -96,7 +96,7 @@ class AbstractSyntaxTree(object):
             if isinstance(field.type, ASDLCompositeType): # sub-trees
                 for rf in rfs:
                     prefix = ' ' * indent + '%s-%s := ' % (rf.type.name, rf.name)
-                    # prefix = '\qquad' * indent + ' %s $\\rightarrow$ ' % (rf.type.to_latex_code())
+                    # prefix = '\qquad' * (indent // 4) + ' %s $\\rightarrow$ ' % (rf.type.to_latex_code())
                     sb.write(prefix)
                     if rf.value is not None:
                         rf.value.to_string(sb, indent, tables, columns, tokenizer)
@@ -120,7 +120,7 @@ class AbstractSyntaxTree(object):
                         value = 'Leaf[j=%d, val=%s]' % (rf.realized_time, val)
                     else: value = '?'
                     serial = ' ' * indent + '%s-%s := %s\n' % (rf.type.name, rf.name, value)
-                    # serial = '\qquad' * indent + ' %s $\\rightarrow$ %s\n' % (rf.type.to_latex_code(), value) # to_latex_code
+                    # serial = '\qquad' * (indent // 4) + ' %s $\\rightarrow$ %s\\\\\n' % (rf.type.to_latex_code(), value) # to_latex_code
                     sb.write(serial)
 
         if is_root:
