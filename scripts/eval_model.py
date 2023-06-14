@@ -77,7 +77,7 @@ def record_heatmap(model, dataset, output_path=None, decode_order='dfs+l2r', dev
             count += 1
 
             _, attention_weights = model(cur_batch, return_attention_weights=True) # use forward function instead of parse
-            rel_mask = torch.tril(torch.ones((tgt_len, tgt_len), dtype=torch.bool))
+            rel_mask = torch.tril(torch.ones((tgt_len, tgt_len), dtype=torch.bool, device=device))
             pad_idx = tranx.ast_relation.DECODER_RELATIONS.index('padding-padding')
             relation = cur_batch.decoder_relations[0].masked_fill(~ rel_mask, pad_idx).tolist()
             relation = [[id2relation[rid] for rid in rid_list] for rid_list in relation]
@@ -88,7 +88,7 @@ def record_heatmap(model, dataset, output_path=None, decode_order='dfs+l2r', dev
                 'ast': ex.ast, # object of class AbstractSyntaxTree, see nsts/asdl_ast.py
                 'action': cur_batch.action_infos[0], # list of class ActionInfos, see nsts/transition_system.py
                 'relation': relation, # tgt_len x tgt_len list, each entry is a relation name~(string), e.g., `0-0', `0-1', see DECODER_RELATIONS in nsts/relation_utils.py
-                'weight': attention_weights[0][:, :, :len(ex.action), :len(ex.action)].numpy() # numpy float array, Layer x Head x tgt_len x tgt_len
+                'weight': attention_weights[0][:, :, :len(ex.action), :len(ex.action)].cpu().numpy() # numpy float array, Layer x Head x tgt_len x tgt_len
             }
             results.append(records)
 

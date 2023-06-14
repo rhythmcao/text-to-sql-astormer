@@ -152,9 +152,9 @@ class ASTDecoder(nn.Module):
 
         if sample_size > 1:
             sum_logprobs = torch.sum(logprobs.masked_fill_(~ batch.tgt_mask, 0.), dim=-1).view(-1, sample_size)
-            loss = - (torch.max(sum_logprobs, dim=1)[0]).sum() # choose the optimal sampling
+            # loss = - (torch.max(sum_logprobs, dim=1)[0]).sum() # choose the optimal sampling
             # loss = - sum_logprobs.sum() # take sum of different samples
-            # loss = - torch.mean(sum_logprobs, dim=1).sum() # take average of different samples
+            loss = - torch.mean(sum_logprobs, dim=1).sum() # take average of different samples
         else:
             loss = - logprobs.masked_select(batch.tgt_mask).sum()
         if return_attention_weights:
