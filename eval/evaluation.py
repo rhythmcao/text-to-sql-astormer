@@ -458,7 +458,10 @@ def print_scores(scores, etype, include_turn_acc=True):
 
     print_formated_s("", levels, '{:20}')
     counts = [scores[level]['count'] for level in levels]
+    total = sum(counts[:-1])
+    ratios = [c / float(total) for c in counts]
     print_formated_s("count", counts, '{:<20d}')
+    print_formated_s("ratio", ratios, '{:<20.2f}')
 
     if etype in ["all", "exec"]:
         print ('=====================   EXECUTION ACCURACY     =====================')

@@ -32,12 +32,6 @@ def convert_dusql_tables(path='data/dusql/db_schema.json'):
         if db['db_id'] == '中国交通':
             db['column_names'][18] = [1, '投用日期备份']
             db['column_names_original'][18] = [1, '投用日期备份']
-        if db['db_id'] == '社交软件':
-            columns = [c for _, c in db['column_names']]
-            db['column_types'][columns.index('日活跃用户量')] = 'number'
-        if db['db_id'] == '中国文学奖':
-            columns = [c for _, c in db['column_names']]
-            db['column_types'][columns.index('字数')] = 'number'
 
         # add special column TIME_NOW after *
         db['column_names'] = [[-1, '*'], [-1, 'TIME_NOW']] + db['column_names'][1:]

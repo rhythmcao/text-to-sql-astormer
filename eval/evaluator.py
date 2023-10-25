@@ -83,8 +83,8 @@ class SurfaceChecker():
 
     def select_check(self, select, table_ids: list, db: dict):
         select = select[1]
-        for agg_id, val_unit in select:
-            if not self.valunit_check(val_unit, table_ids, db): return False
+        for agg_op, val_unit in select:
+            if not self.valunit_check(agg_op, val_unit, table_ids, db): return False
         return True
 
 
@@ -92,8 +92,8 @@ class SurfaceChecker():
         if len(cond) == 0: return True
         for idx in range(0, len(cond), 2):
             cond_unit = cond[idx]
-            _, cmp_op, val_unit, val1, val2 = cond_unit
-            flag = self.valunit_check(val_unit, table_ids, db)
+            agg_op, cmp_op, val_unit, val1, val2 = cond_unit
+            flag = self.valunit_check(agg_op, val_unit, table_ids, db)
             if type(val1) == dict:
                 flag &= self.sql_check(val1, db)
             if type(val2) == dict:
@@ -105,43 +105,45 @@ class SurfaceChecker():
     def groupby_check(self, groupby, table_ids: list, db: dict):
         if not groupby: return True
         for col_unit in groupby:
-            if not self.colunit_check(col_unit, table_ids, db): return False
+            if not self.colunit_check(0, col_unit, table_ids, db): return False
         return True
 
 
     def orderby_check(self, orderby, table_ids: list, db: dict):
         if not orderby: return True
         orderby = orderby[1]
-        for agg_id, val_unit in orderby:
-            if not self.valunit_check(val_unit, table_ids, db): return False
+        for agg_op, val_unit in orderby:
+            if not self.valunit_check(agg_op, val_unit, table_ids, db): return False
         return True
 
 
-    def colunit_check(self, col_unit: list, table_ids: list, db: dict):
+    def colunit_check(self, agg_op: int, col_unit: list, table_ids: list, db: dict):
         """ Check from the following aspects:
         1. column belongs to the tables in FROM clause
         2. column type is valid for AGG_OP
         """
-        agg_id, col_id, _ = col_unit
-        if col_id == 0 or (self.dataset == 'dusql' and col_id == 1): return True
+        _, col_id, _ = col_unit
+        if col_id == 0: return (agg_op in [0, 3])
+        if self.dataset == 'dusql' and col_id == 1: return True
         tab_id = db['column_names'][col_id][0]
         if tab_id not in table_ids: return False
         col_type = db['column_types'][col_id]
-        if agg_id in [1, 2, 4, 5]: # MAX, MIN, SUM, AVG
+        if agg_op in [1, 2, 4, 5]: # MAX, MIN, SUM, AVG
             return (col_type in ['time', 'number'])
         return True
 
 
-    def valunit_check(self, val_unit: list, table_ids: list, db: dict):
+    def valunit_check(self, agg_op: int, val_unit: list, table_ids: list, db: dict):
         unit_op, col_unit1, col_unit2 = val_unit
-        if unit_op == 0: return self.colunit_check(col_unit1, table_ids, db)
-        if not (self.colunit_check(col_unit1, table_ids, db) and self.colunit_check(col_unit2, table_ids, db)): return False
-        # COUNT/SUM/AVG -> number
-        agg_id1, col_id1, _ = col_unit1
-        agg_id2, col_id2, _ = col_unit2
-        t1 = 'number' if agg_id1 > 2 else db['column_types'][col_id1]
-        t2 = 'number' if agg_id2 > 2 else db['column_types'][col_id2]
-        if (t1 not in ['number', 'time']) or (t2 not in ['number', 'time']) or t1 != t2: return False
+        if unit_op == 0: return self.colunit_check(agg_op, col_unit1, table_ids, db)
+        if not (self.colunit_check(agg_op, col_unit1, table_ids, db) and self.colunit_check(agg_op, col_unit2, table_ids, db)): return False
+        # COUNT/SUM/AVG -> number, time
+        _, col_id1, _ = col_unit1
+        _, col_id2, _ = col_unit2
+        t1 = 'number' if agg_op == 3 else db['column_types'][col_id1]
+        t2 = 'number' if agg_op == 3 else db['column_types'][col_id2]
+        if (t1 not in ['number', 'time']) or (t2 not in ['number', 'time']) or t1 != t2:
+            return False
         return True
 
 
