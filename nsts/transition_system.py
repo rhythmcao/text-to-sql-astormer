@@ -111,7 +111,7 @@ class ActionInfo(object):
 
 class TransitionSystem(object):
 
-    primitive_type_to_action ={
+    primitive_type_to_action = {
         'tab_id': SelectTableAction,
         'col_id': SelectColumnAction,
         'val_id': GenerateTokenAction
@@ -266,7 +266,7 @@ class TransitionSystem(object):
 
             return bfs_random_flatten(action_info)
         elif order == 'random': # randomly AST traverse as long as top-down topological order is obeyed
-            
+
             def random_flatten(action_struct):
                 actions, queue = [], [action_struct]
                 while len(queue) > 0:

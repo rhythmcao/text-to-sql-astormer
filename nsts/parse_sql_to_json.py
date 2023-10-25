@@ -754,6 +754,10 @@ def parse_dataset(input_path, table_path):
                 ex['query'] = ex['query'].replace('T2.maxOccupancy  =  T1.Adults + T1.Kids', 'T1.Adults + T1.Kids = T2.maxOccupancy')
             elif 'T1.融资轮次 from 企业融资 as T1 join 企业 as T2 join 企业 as T3 on 企业融资.企业id = 企业.词条id and 投资公司.企业id = 企业.词条id order by T1.融资总额' in ex['query']:
                 ex['query'] = ex['query'].replace('企业 as T3 on', '投资公司 as T3 on').replace('T3.中文名', 'T2.中文名')
+            elif 'T2.actid  =  T2.actid' in ex['query']:
+                ex['query'] = ex['query'].replace('T2.actid  =  T2.actid', 'T2.actid  =  T3.actid') if 'AS T3' in ex['query'] else ex['query'].replace('T2.actid  =  T2.actid', 'T1.actid  =  T2.actid')
+            elif 'SELECT T2.dormid FROM dorm AS T3' in ex['query']:
+                ex['query'] = ex['query'].replace('SELECT T2.dormid FROM dorm AS T3', 'SELECT T3.dormid FROM dorm AS T3')
 
             ex['sql'] = parser.parse(ex['query'], tables[ex['db_id']])
 
