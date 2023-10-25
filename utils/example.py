@@ -46,7 +46,7 @@ class Example():
     @classmethod
     def load_dataset(cls, choice='train', dataset_path=None, DEBUG=False):
         if dataset_path is None:
-            assert choice in ['train', 'dev']
+            assert choice in ['train', 'dev', 'dev_syn', 'dev_realistic', 'dev_dk']
             choice = 'train' if DEBUG else choice
             dataset = json.load(open(CONFIG_PATHS[cls.dataset][choice], 'r'))
         else:
@@ -71,8 +71,10 @@ class Example():
                 if choice == 'train' and len(db['column_names']) > 100: continue # skip large dataset
                 if 'question_ids' not in ex:
                     ex = cls.processor.pipeline(ex, db)
-                idx = ex['question_id'] if cls.dataset == 'dusql' else 0
-                examples.append(cls(ex, db, id=idx))
+                idx = ex['question_id'] if cls.dataset == 'dusql' and 'question_id' in ex else 0
+                cur_ex = cls(ex, db, id=idx)
+                if choice == 'train' and len(cur_ex.input_id) > 430: continue
+                examples.append(cur_ex)
                 if DEBUG and len(examples) >= 100: break
 
         return SQLDataset(examples)

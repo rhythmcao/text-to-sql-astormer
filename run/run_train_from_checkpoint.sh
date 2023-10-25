@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read_model_path=
+read_model_path=$1
 ddp=''
 batch_size=20
 grad_accumulate=1

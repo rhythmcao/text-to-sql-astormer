@@ -29,6 +29,9 @@ if args.read_model_path: # load from checkpoints or testing mode
     params.load_optimizer, params.testing, params.device, params.ddp = args.load_optimizer, args.testing, args.device, args.ddp
     params.batch_size, params.grad_accumulate, params.test_batch_size = args.batch_size, args.grad_accumulate, args.test_batch_size
     params.beam_size, params.n_best = args.beam_size, args.n_best
+    if not params.load_optimizer:
+        params.max_iter, params.eval_after_iter = args.max_iter, args.eval_after_iter
+        params.lr, params.l2, params.layerwise_decay = args.lr, args.l2, args.layerwise_decay
     args = params
 exp_path, logger, device, local_rank, rank, world_size = initialization_wrapper(args)
 is_master = (rank == 0)
@@ -68,7 +71,7 @@ if not args.testing:
     else: train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False, collate_fn=train_collate_fn)
 
     # set optimizer and scheduler
-    eval_per_iter, loss_per_iter = 5000, 1000
+    eval_per_iter, loss_per_iter = 2000, 1000
     num_training_steps = args.max_iter * loss_per_iter
     num_warmup_steps = int(num_training_steps * args.warmup_ratio)
     optimizer, scheduler = set_optimizer(base_model, args, num_training_steps, module=base_model.encoder.input_layer, module_name='plm')
@@ -158,7 +161,30 @@ if is_master:
         beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
     logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
     check_point['result']['dev_em_acc'], check_point['result']['dev_ex_acc'] = dev_em_acc, dev_ex_acc
-    torch.save(check_point, open(os.path.join(exp_path, 'model.bin'), 'wb'))
+
+    logger.info("Start evaluating dev_syn dataset on testsuite database ......")
+    dev_dataset = Example.load_dataset('dev_syn')
+    start_time = time.time()
+    dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_syn.eval'), batch_size=args.test_batch_size,
+        beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+    check_point['result']['dev_syn_em_acc'], check_point['result']['dev_syn_ex_acc'] = dev_em_acc, dev_ex_acc
+
+    logger.info("Start evaluating dev_dk dataset on testsuite database ......")
+    dev_dataset = Example.load_dataset('dev_dk')
+    start_time = time.time()
+    dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_dk.eval'), batch_size=args.test_batch_size,
+        beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+    check_point['result']['dev_dk_em_acc'], check_point['result']['dev_dk_ex_acc'] = dev_em_acc, dev_ex_acc
+
+    logger.info("Start evaluating dev_realistic dataset on testsuite database ......")
+    dev_dataset = Example.load_dataset('dev_realistic')
+    start_time = time.time()
+    dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_realistic.eval'), batch_size=args.test_batch_size,
+        beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+    check_point['result']['devi_realistic_em_acc'], check_point['result']['dev_realistic_ex_acc'] = dev_em_acc, dev_ex_acc
 
     # logger.info('Start evaluating and printing ASTs on the dev dataset ......')
     # start_time = time.time()
@@ -170,6 +196,7 @@ if is_master:
     # count = record_heatmap(base_model, dev_dataset, os.path.join(exp_path, 'dev.heatmap'), decode_order=args.decode_order, device=device)
     # logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Record {count:d} heatmaps among {len(dev_dataset):d} samples ;")
 
+    torch.save(check_point, open(os.path.join(exp_path, 'model.bin'), 'wb'))
 
 if args.ddp:
     dist.destroy_process_group()

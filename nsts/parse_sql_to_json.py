@@ -702,7 +702,7 @@ def parse_dataset(input_path, table_path):
     parser = JsonParser()
     for ex in dataset:
         if 'interaction' in ex: # conversational text-to-SQL
-            
+
             # error fixing during training
             if 'WHERE WHERE' in ex['final']['query']:
                 ex['final']['query'] = ex['final']['query'].replace('WHERE WHERE', 'WHERE')
@@ -716,11 +716,11 @@ def parse_dataset(input_path, table_path):
                 ex['final']['query'] = ex['final']['query'].replace('and 诗词名 =', 'where 诗词名 =')
             elif 'ON T2.公司id = T3.公司id and t3.名称 = "京东"' in ex['final']['query']:
                 ex['final']['query'] = ex['final']['query'].replace('and t3.名称 =', 'where t3.名称 =')
-            
+
             ex['final']['sql'] = parser.parse(ex['final']['query'], tables[ex['database_id']])
-            
+
             for turn in ex['interaction']:
-                
+
                 # error fixing during training
                 if re.search(r'SELECT\s+FROM', turn['query']):
                     turn['query'] = re.sub(r'SELECT\s+FROM', 'SELECT * FROM', turn['query'])
@@ -744,7 +744,7 @@ def parse_dataset(input_path, table_path):
                     turn['query'] = turn['query'].replace('and t3.名称 =', 'where t3.名称 =')
                 turn['sql'] = parser.parse(turn['query'], tables[ex['database_id']])
         else:
-            
+
             # error fixing during training
             if 'Ref_Company_Types' in ex['query']:
                 ex['question'] = 'What is the type of the company who concluded its contracts most recently ?'
@@ -769,11 +769,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', dest='dataset', default='spider', choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'], help='filepath to the dataset')
-    parser.add_argument('-s', dest='data_split', default='train', choices=['train', 'dev', 'all'], help='dataset split')
+    parser.add_argument('-s', dest='data_split', default='train', choices=['train', 'dev', 'all', 'dev_ext'], help='dataset split')
     args = parser.parse_args(sys.argv[1:])
 
     table_path = CONFIG_PATHS[args.dataset]['tables']
-    data_split = ['train', 'dev'] if args.data_split == 'all' else [args.data_split]
+    data_split = ['train', 'dev'] if args.data_split == 'all' else [args.data_split] if args.data_split != 'dev_ext' else ['dev_syn', 'dev_dk', 'dev_realistic']
     for split in data_split:
         input_path = CONFIG_PATHS[args.dataset][split]
         parse_dataset(input_path, table_path)

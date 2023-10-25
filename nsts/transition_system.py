@@ -15,6 +15,9 @@ CONFIG_PATHS = {
     'spider': {
         'train': 'data/spider/train.json',
         'dev': 'data/spider/dev.json',
+        'dev_syn': 'data/spider/dev_syn.json',
+        'dev_dk': 'data/spider/dev_dk.json',
+        'dev_realistic': 'data/spider/dev_realistic.json',
         'tables': 'data/spider/tables.json',
         'db_dir': 'data/spider/database',
         'testsuite': 'data/spider/database-testsuite'

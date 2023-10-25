@@ -2,17 +2,17 @@ task=astormer-base
 dataset=$1
 seed=999
 device=0
-ddp='--ddp' # --ddp
+ddp='' # --ddp
 
-plm=$2 #bert-base-uncased
+plm=$2
 encode_method=rgatsql
 encoder_hidden_size=512
 encoder_num_layers=2
 num_heads=8
 
-decode_method=seq
+decode_method=ast
 decode_order=dfs+l2r
-decoder_cell=lstm
+decoder_cell=transformer
 decoder_hidden_size=512
 decoder_num_layers=2
 
@@ -25,8 +25,8 @@ l2=0.1
 layerwise_decay=0.8
 warmup_ratio=0.1
 lr_schedule=linear
-eval_after_iter=60
-max_iter=100
+eval_after_iter=30
+max_iter=50
 max_norm=5
 beam_size=5
 n_best=5

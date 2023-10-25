@@ -47,8 +47,9 @@ if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-d', dest='dataset', type=str, required=True, choices=['spider', 'sparc', 'cosql', 'dusql', 'chase'])
     arg_parser.add_argument('-t', dest='tokenizer', type=str, default='grappa_large_jnt', help='PLM name used for the tokenizer and vocabulary')
-    arg_parser.add_argument('-s', dest='data_split', type=str, default='all', choices=['train', 'dev', 'all'], help='dataset path')
+    arg_parser.add_argument('-s', dest='data_split', type=str, default='all', choices=['train', 'dev', 'all', 'dev_ext'], help='dataset path')
     arg_parser.add_argument('-e', dest='encode_method', type=str, default='none', choices=['none', 'rgatsql'], help='encode method')
+    arg_parser.add_argument('--skip_tables', action='store_true', help='skip preprocessing tables')
     args = arg_parser.parse_args()
 
     db_dir = CONFIG_PATHS[args.dataset]['db_dir']
@@ -57,9 +58,10 @@ if __name__ == '__main__':
 
     table_path = CONFIG_PATHS[args.dataset]['tables']
     tables = json.load(open(table_path, 'r'))
-    tables = process_tables(processor, tables, output_path=table_path)
+    if not args.skip_tables:
+        tables = process_tables(processor, tables, output_path=table_path)
 
-    data_split = ['train', 'dev'] if args.data_split == 'all' else [args.data_split]
+    data_split = ['train', 'dev'] if args.data_split == 'all' else [args.data_split] if args.data_split != 'dev_ext' else ['dev_syn', 'dev_realistic', 'dev_dk']
     for split in data_split:
         start_time = time.time()
         dataset_path = CONFIG_PATHS[args.dataset][split]

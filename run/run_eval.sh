@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read_model_path=exp/task_inference-time__dataset_${1}__encoder_rgatsql__decoder_${2}/electra-small-discriminator__enc_256_x_2__hd_8__order_dfs+l2r__dec_256_x_2__cell_${3}__bs_20__dp_0.2__lr_0.0004_ld_0.8__l2_0.1__mi_100__mn_5.0__bm_5__nb_5__seed_999/
+read_model_path=$1
 test_batch_size=50
 beam_size=5
 n_best=5
