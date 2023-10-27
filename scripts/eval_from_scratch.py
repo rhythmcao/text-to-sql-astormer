@@ -28,8 +28,7 @@ params.lazy_load = True
 device = set_torch_device(args.device)
 
 # load dataset and preprocess
-Example.configuration(params.dataset, swv=params.swv, plm=params.plm, encode_method=params.encode_method, decode_method=params.decode_method,
-    table_path=args.table_path, db_dir=args.db_dir)
+Example.configuration(params.dataset, swv=params.swv, plm=params.plm, encode_method=params.encode_method, decode_method=params.decode_method, table_path=args.table_path, db_dir=args.db_dir)
 dataset = Example.load_dataset(dataset_path=args.dataset_path)
 eval_collate_fn = Batch.get_collate_fn(device=device, train=False)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=eval_collate_fn)

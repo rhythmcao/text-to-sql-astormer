@@ -34,7 +34,7 @@ params="--swv --task $task --dataset $dataset --seed $seed --encode_method $enco
 GPU_PER_NODE=${GPU_PER_NODE:-1}
 WORLD_SIZE=${WORLD_SIZE:-1}
 RANK=${RANK:-0}
-if [ "$GPU_PER_NODE" -gt 1 || "$WORLD_SIZE" -gt 1 ] ; then
+if [ "$GPU_PER_NODE" -gt 1 ] || [ "$WORLD_SIZE" -gt 1 ] ; then
     echo "[WARNING]: Static word vectors does not need distributed data parallel strategy !"
     python3 -um torch.distributed.launch --nproc_per_node $GPU_PER_NODE --nnodes $WORLD_SIZE --node_rank $RANK --master_addr $MASTER_ADDR --master_port $MASTER_PORT scripts/train_and_eval.py --ddp $params
 else

@@ -50,6 +50,7 @@ def initialization_wrapper(args):
         try:
             torch.distributed.init_process_group("nccl")
             assert torch.distributed.is_initialized()
+            print('Initialization succeed !')
         except:
             exit("[ERROR]: Distributed training initialization failed !")
         rank, world_size = torch.distributed.get_rank(), torch.distributed.get_world_size()
@@ -63,5 +64,5 @@ def initialization_wrapper(args):
     logger.info("Initialization finished ...")
     logger.info(f"Output path: {exp_path}")
     logger.info(f"Random seed: {args.seed}")
-    logger.info(f"Local rank: {args.local_rank} ; Node rank: {rank} ; World size: {world_size}")
+    logger.info(f"Local rank: {args.local_rank} ; Global rank: {rank} ; World size: {world_size}")
     return exp_path, logger, device, is_master, world_size
