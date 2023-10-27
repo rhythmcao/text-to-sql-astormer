@@ -4,12 +4,12 @@ import re, sys, os, logging, random, torch
 from utils.hyperparams import hyperparam_path
 
 
-def set_logger(exp_path, testing=False, rank=0, append_mode=False):
+def set_logger(exp_path, testing=False, is_master=True, append_mode=False):
     logFormatter = logging.Formatter('%(asctime)s - %(message)s') #('%(asctime)s - %(levelname)s - %(message)s')
     logger = logging.getLogger('mylogger')
-    level = logging.DEBUG if rank == 0 else logging.ERROR
+    level = logging.DEBUG #if is_master else logging.ERROR
     logger.setLevel(level)
-    if rank == 0:
+    if is_master:
         mode = 'a' if append_mode else 'w'
         fileHandler = logging.FileHandler('%s/log_%s.txt' % (exp_path, ('test' if testing else 'train')), mode=mode)
         fileHandler.setFormatter(logFormatter)
@@ -29,8 +29,10 @@ def set_random_seed(random_seed=999):
 
 
 def set_torch_device(deviceId):
+    deviceId = deviceId if torch.cuda.is_available() else -1
     if deviceId < 0:
         device = torch.device("cpu")
+        print('[WARNING]: Use CPU , not GPU !')
     else:
         assert torch.cuda.device_count() >= deviceId + 1
         device = torch.device("cuda:%d" % (deviceId))
@@ -42,49 +44,24 @@ def set_torch_device(deviceId):
     return device
 
 
-def get_master_node_address():
-    """ Select the master node in our slurm environment, machines are named like gqxx-01-104 """
-    try:
-        nodelist = os.environ['SLURM_STEP_NODELIST']
-    except:
-        nodelist = os.environ['SLURM_JOB_NODELIST']
-    nodelist = nodelist.strip().split(',')[0]
-    text = re.split('[-\[\]]', nodelist)
-    if ('' in text):
-        text.remove('')
-    return text[0] + '-' + text[1] + '-' + text[2]
-
-
-def distributed_init(host, rank, local_rank, world_size, port=23456):
-    host_full = 'tcp://' + host + ':' + str(port)
-    try:
-        torch.distributed.init_process_group("nccl", init_method=host_full,
-                                              rank=rank, world_size=world_size)
-    except:
-        print(f"Host addr {host_full}")
-        print(f"Process id {int(os.environ['SLURM_PROCID'])}")
-        exit("Distributed training initialization failed")
-    assert torch.distributed.is_initialized()
-    return set_torch_device(local_rank)
-
-
 def initialization_wrapper(args):
     set_random_seed(args.seed)
     if args.ddp:
-        host_address = get_master_node_address()
-        local_rank = int(os.environ['SLURM_LOCALID'])
-        rank = int(os.environ['SLURM_PROCID'])
-        world_size = int(os.environ['SLURM_NTASKS'])
-        port = '2' + os.environ['SLURM_JOBID'][-4:]
-        print('host address | local_rank | rank | world_size | port:', host_address, local_rank, rank, world_size, port)
-        device = distributed_init(host_address, rank, local_rank, world_size, port='2' + os.environ['SLURM_JOBID'][-4:])
+        try:
+            torch.distributed.init_process_group("nccl")
+            assert torch.distributed.is_initialized()
+        except:
+            exit("[ERROR]: Distributed training initialization failed !")
+        rank, world_size = torch.distributed.get_rank(), torch.distributed.get_world_size()
+        device = set_torch_device(args.local_rank)
     else:
-        local_rank, rank, world_size = 0, 0, 1
-        device = set_torch_device(args.device)
-    exp_path = hyperparam_path(args, create=(rank == 0))
-    logger = set_logger(exp_path, args.testing, rank, args.load_optimizer)
+        rank, world_size = 0, 1
+        device = set_torch_device(args.local_rank)
+    is_master = (rank == 0)
+    exp_path = hyperparam_path(args, create=is_master)
+    logger = set_logger(exp_path, args.testing, is_master, args.load_optimizer)
     logger.info("Initialization finished ...")
-    logger.info(f"Output path is {exp_path}")
-    logger.info(f"Random seed is set to {args.seed}")
-    logger.info(f"World size is {world_size}")
-    return exp_path, logger, device, local_rank, rank, world_size
+    logger.info(f"Output path: {exp_path}")
+    logger.info(f"Random seed: {args.seed}")
+    logger.info(f"Local rank: {args.local_rank} ; Node rank: {rank} ; World size: {world_size}")
+    return exp_path, logger, device, is_master, world_size

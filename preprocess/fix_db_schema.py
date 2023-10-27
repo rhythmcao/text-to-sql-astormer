@@ -167,9 +167,9 @@ if __name__ == '__main__':
     tables = json.load(open(CONFIG_PATHS['dusql']['tables'], 'r'))
     tables = fix_dusql_column_types(tables)
     tables = fix_dusql_primary_and_foreign_keys(tables)
-    json.dump(tables, CONFIG_PATHS['dusql']['tables'], indent=4, ensure_ascii=False)
+    json.dump(tables, open(CONFIG_PATHS['dusql']['tables'], 'w'), indent=4, ensure_ascii=False)
 
     tables = json.load(open(CONFIG_PATHS['spider']['tables'], 'r'))
     tables = fix_spider_column_types(tables, db_dir=CONFIG_PATHS['spider']['db_dir'])
     tables = fix_spider_primary_and_foreign_keys(tables)
-    json.dump(tables, CONFIG_PATHS['spider']['tables'], indent=4, ensure_ascii=False)
+    json.dump(tables, open(CONFIG_PATHS['spider']['tables'], 'w'), indent=4, ensure_ascii=False)

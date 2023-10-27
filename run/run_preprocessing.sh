@@ -16,7 +16,7 @@ python3 -u nsts/parse_sql_to_json.py -d dusql -s all
 python3 -u nsts/parse_sql_to_json.py -d chase -s all
 
 python3 -u preprocess/data_preprocess.py -d spider -t $plm -e $encode_method -s all
-python3 -u preprocess/data_preprocess.py -d spider -t $plm -e $encode_method -s dev_ext
+python3 -u preprocess/data_preprocess.py -d spider -t $plm -e $encode_method -s dev_ext --skip_tables
 python3 -u preprocess/data_preprocess.py -d sparc -t $plm -e $encode_method -s all
 python3 -u preprocess/data_preprocess.py -d cosql -t $plm -e $encode_method -s all
 python3 -u preprocess/data_preprocess.py -d dusql -t $zh_plm -e $encode_method -s all

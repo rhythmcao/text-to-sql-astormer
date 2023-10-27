@@ -26,15 +26,14 @@ start_time = time.time()
 if args.read_model_path: # load from checkpoints or testing mode
     params = json.load(open(os.path.join(args.read_model_path, 'params.json')), object_hook=lambda d: Namespace(**d))
     params.read_model_path, params.lazy_load = args.read_model_path, True
-    params.load_optimizer, params.testing, params.device, params.ddp = args.load_optimizer, args.testing, args.device, args.ddp
+    params.load_optimizer, params.testing, params.local_rank, params.ddp = args.load_optimizer, args.testing, args.local_rank, args.ddp
     params.batch_size, params.grad_accumulate, params.test_batch_size = args.batch_size, args.grad_accumulate, args.test_batch_size
     params.beam_size, params.n_best = args.beam_size, args.n_best
     if not params.load_optimizer:
         params.max_iter, params.eval_after_iter = args.max_iter, args.eval_after_iter
         params.lr, params.l2, params.layerwise_decay = args.lr, args.l2, args.layerwise_decay
     args = params
-exp_path, logger, device, local_rank, rank, world_size = initialization_wrapper(args)
-is_master = (rank == 0)
+exp_path, logger, device, is_master, world_size = initialization_wrapper(args)
 
 
 # initialize model
@@ -45,9 +44,9 @@ if args.read_model_path:
     model.load_state_dict(check_point['model'])
     logger.info(f"Load saved model from path: {args.read_model_path:s}")
 else: json.dump(vars(args), open(os.path.join(exp_path, 'params.json'), 'w'), indent=4)
-if args.ddp: # add DDP wrapper for model
-    model = DDP(model, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True)
-base_model = model.module if args.ddp else model
+if world_size > 1: # add DDP wrapper for model
+    model = DDP(model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True)
+base_model = model.module if world_size > 1 else model
 
 
 # read dataset
@@ -65,7 +64,7 @@ if not args.testing:
 
     # set training dataloader
     train_collate_fn = Batch.get_collate_fn(device=device, train=True, decode_order=args.decode_order) #, sample_size=4
-    if args.ddp:
+    if world_size > 1:
         train_sampler = DistributedSampler(train_dataset)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, shuffle=False, collate_fn=train_collate_fn)
     else: train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False, collate_fn=train_collate_fn)
@@ -89,11 +88,11 @@ if not args.testing:
     model.train()
     terminate, count, start_time, loss_tracker = False, 0, time.time(), 0.
     for i in itertools.count(start_epoch, 1):
-        if args.ddp: train_loader.sampler.set_epoch(i)
+        if world_size > 1: train_loader.sampler.set_epoch(i)
         for j, current_batch in enumerate(train_loader):
             count += 1
             update_flag = (count == args.grad_accumulate)
-            cntx = model.no_sync() if args.ddp and not update_flag else nullcontext()
+            cntx = model.no_sync() if world_size > 1 and not update_flag else nullcontext()
             with cntx:
                 loss = model(current_batch)
                 (world_size * loss).backward()
@@ -162,29 +161,30 @@ if is_master:
     logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
     check_point['result']['dev_em_acc'], check_point['result']['dev_ex_acc'] = dev_em_acc, dev_ex_acc
 
-    logger.info("Start evaluating dev_syn dataset on testsuite database ......")
-    dev_dataset = Example.load_dataset('dev_syn')
-    start_time = time.time()
-    dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_syn.eval'), batch_size=args.test_batch_size,
-        beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
-    check_point['result']['dev_syn_em_acc'], check_point['result']['dev_syn_ex_acc'] = dev_em_acc, dev_ex_acc
-
-    logger.info("Start evaluating dev_dk dataset on testsuite database ......")
-    dev_dataset = Example.load_dataset('dev_dk')
-    start_time = time.time()
-    dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_dk.eval'), batch_size=args.test_batch_size,
-        beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
-    check_point['result']['dev_dk_em_acc'], check_point['result']['dev_dk_ex_acc'] = dev_em_acc, dev_ex_acc
-
-    logger.info("Start evaluating dev_realistic dataset on testsuite database ......")
-    dev_dataset = Example.load_dataset('dev_realistic')
-    start_time = time.time()
-    dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_realistic.eval'), batch_size=args.test_batch_size,
-        beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-    logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
-    check_point['result']['devi_realistic_em_acc'], check_point['result']['dev_realistic_ex_acc'] = dev_em_acc, dev_ex_acc
+    if args.dataset == 'spider':
+        logger.info("Start evaluating dev_syn dataset on testsuite database ......")
+        dev_dataset = Example.load_dataset('dev_syn')
+        start_time = time.time()
+        dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_syn.eval'), batch_size=args.test_batch_size,
+            beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+        logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+        check_point['result']['dev_syn_em_acc'], check_point['result']['dev_syn_ex_acc'] = dev_em_acc, dev_ex_acc
+    
+        logger.info("Start evaluating dev_dk dataset on testsuite database ......")
+        dev_dataset = Example.load_dataset('dev_dk')
+        start_time = time.time()
+        dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_dk.eval'), batch_size=args.test_batch_size,
+            beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+        logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+        check_point['result']['dev_dk_em_acc'], check_point['result']['dev_dk_ex_acc'] = dev_em_acc, dev_ex_acc
+    
+        logger.info("Start evaluating dev_realistic dataset on testsuite database ......")
+        dev_dataset = Example.load_dataset('dev_realistic')
+        start_time = time.time()
+        dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_realistic.eval'), batch_size=args.test_batch_size,
+            beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+        logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+        check_point['result']['devi_realistic_em_acc'], check_point['result']['dev_realistic_ex_acc'] = dev_em_acc, dev_ex_acc
 
     # logger.info('Start evaluating and printing ASTs on the dev dataset ......')
     # start_time = time.time()
@@ -198,5 +198,5 @@ if is_master:
 
     torch.save(check_point, open(os.path.join(exp_path, 'model.bin'), 'wb'))
 
-if args.ddp:
+if world_size > 1:
     dist.destroy_process_group()

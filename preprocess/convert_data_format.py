@@ -22,7 +22,7 @@ def convert_dusql_tables(path='data/dusql/db_schema.json'):
             if table['db_id'] in table_names: continue
             tables.append(table)
             table_names.add(table['db_id'])
-        
+
     for db in tables:
         if 'table_names_original' not in db:
             db['table_names_original'] = db['table_names']
@@ -102,14 +102,14 @@ def convert_chase_database(path='data/chase/database'):
         if not f.endswith('.sqlite'): continue
         prefix = os.path.splitext(f)[0]
         output_path = os.path.join(path, prefix)
-        if not os.path.exists(output_path):
+        if not os.path.exists(output_path) or not os.path.isdir(output_path):
             os.makedirs(output_path)
-        
+
         original_file = os.path.join(path, f)
         output_file = os.path.join(output_path, f)
         if os.path.exists(output_file):
             os.remove(output_file)
-        shutil.copyfile(original_file, output_file)
+        shutil.move(original_file, output_file)
     return
 
 

@@ -1,6 +1,6 @@
 #coding=utf8
 import numpy as np
-import os, re, string, stanza, torch, jieba
+import os, re, string, stanza, torch
 from LAC import LAC
 from typing import List, Tuple
 from nltk.corpus import stopwords
@@ -51,7 +51,6 @@ class PreProcessor(object):
         self.db_content, self.bridge_value = db_content, 0
         self.stopwords = STOPWORDS | set(stopwords.words("english")) | set(string.punctuation + '，。！￥？（）《》、；·…‘’“”') - {'no'}
         if dataset in ['dusql', 'chase']:
-            # self.word_level_tokenizer = lambda x: list(filter(lambda x: x.strip(), jieba.cut(x)))
             tool = LAC(mode='seg')
             self.word_level_tokenizer = lambda s: list(filter(lambda x: x.strip(), tool.run(s)))
         else:
