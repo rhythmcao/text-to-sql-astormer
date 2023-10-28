@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read_model_path= # directory which stores the model.bin and params.json, e.g., exp/task_astormer/electra-transformer/
+read_model_path=$1 # directory which stores the model.bin and params.json, e.g., exp/task_astormer/electra-transformer/
 #db_dir= # directory path to the database, e.g., data/spider/database-testsuite
 #table_path= # file path to tables.json, e.g., data/spider/tables.json
 #dataset_path= # file path to dev.json or test.json, e.g., data/spider/dev.json
