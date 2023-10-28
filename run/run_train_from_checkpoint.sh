@@ -7,7 +7,7 @@ test_batch_size=50
 beam_size=5
 n_best=5
 
-params="----load_optimizer --read_model_path $read_model_path --batch_size $batch_size --grad_accumulate $grad_accumulate --test_batch_size --beam_size $beam_size --n_best $n_best"
+params="--load_optimizer --read_model_path $read_model_path --batch_size $batch_size --grad_accumulate $grad_accumulate --test_batch_size --beam_size $beam_size --n_best $n_best"
 
 GPU_PER_NODE=${GPU_PER_NODE:-1}
 WORLD_SIZE=${WORLD_SIZE:-1}
