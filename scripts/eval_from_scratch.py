@@ -8,14 +8,15 @@ from utils.batch import Batch
 from torch.utils.data import DataLoader
 from model.model_utils import Registrable
 from model.model_constructor import *
+from nsts.transition_system import CONFIG_PATHS
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--read_model_path', required=True, help='path to saved model path, at least contain param.json and model.bin')
-parser.add_argument('--db_dir', default='data/database', help='path to db dir')
-parser.add_argument('--table_path', default='data/tables.json', help='path to tables json file')
-parser.add_argument('--dataset_path', default='data/dev.json', help='path to raw dataset json file')
-parser.add_argument('--output_path', default='predicted_sql.txt', help='output predicted sql file')
+parser.add_argument('--db_dir', help='path to db dir')
+parser.add_argument('--table_path', help='path to tables json file')
+parser.add_argument('--dataset_path', help='path to raw dataset json file')
+parser.add_argument('--output_file', default='predicted_sql.txt', help='output predicted sql filename')
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--n_best', default=5, type=int, help='return n_best size')
@@ -28,8 +29,12 @@ params.lazy_load = True
 device = set_torch_device(args.device)
 
 # load dataset and preprocess
-Example.configuration(params.dataset, swv=params.swv, plm=params.plm, encode_method=params.encode_method, decode_method=params.decode_method, table_path=args.table_path, db_dir=args.db_dir)
-dataset = Example.load_dataset(dataset_path=args.dataset_path)
+dataset = params.dataset
+table_path = CONFIG_PATHS[dataset]['tables'] if args.table_path is None else args.table_path
+db_dir = CONFIG_PATHS[dataset]['db_dir'] if args.db_dir is None else args.db_dir
+dataset_path = args.dataset_path if args.dataset_path is not None else CONFIG_PATHS[dataset]['test'] if 'test' in CONFIG_PATHS[dataset] else CONFIG_PATHS[dataset]['dev']
+Example.configuration(dataset, swv=params.swv, plm=params.plm, encode_method=params.encode_method, decode_method=params.decode_method, table_path=table_path, db_dir=db_dir)
+dataset = Example.load_dataset(dataset_path=dataset_path)
 eval_collate_fn = Batch.get_collate_fn(device=device, train=False)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=eval_collate_fn)
 
@@ -47,9 +52,9 @@ with torch.no_grad():
         hyps = model.parse(cur_batch, beam_size=args.beam_size, n_best=args.n_best, decode_order=params.decode_order)
         sqls = evaluator.postprocess(hyps, cur_batch.examples, decode_method=decode_method, execution_guided=True)
         pred_sqls.extend(sqls)
-
-print('Start writing predicted SQLs to file %s' % (args.output_path))
-with open(args.output_path, 'w', encoding='utf8') as of:
+output_path = os.path.join(args.read_model_path, args.output_file)
+print(f'Start writing predicted SQLs to file {output_path}')
+with open(output_path, 'w', encoding='utf8') as of:
     prev_id = 0
     for s, ex in zip(pred_sqls, dataset):
         prefix = '\n' if ex.turn_id != prev_id else ''
