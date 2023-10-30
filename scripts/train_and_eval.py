@@ -162,29 +162,17 @@ if is_master:
     check_point['result']['dev_em_acc'], check_point['result']['dev_ex_acc'] = dev_em_acc, dev_ex_acc
 
     if args.dataset == 'spider':
-        logger.info("Start evaluating dev_syn dataset on testsuite database ......")
-        dev_dataset = Example.load_dataset('dev_syn')
-        start_time = time.time()
-        dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_syn.eval'), batch_size=args.test_batch_size,
-            beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-        logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
-        check_point['result']['dev_syn_em_acc'], check_point['result']['dev_syn_ex_acc'] = dev_em_acc, dev_ex_acc
-    
-        logger.info("Start evaluating dev_dk dataset on testsuite database ......")
-        dev_dataset = Example.load_dataset('dev_dk')
-        start_time = time.time()
-        dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_dk.eval'), batch_size=args.test_batch_size,
-            beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-        logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
-        check_point['result']['dev_dk_em_acc'], check_point['result']['dev_dk_ex_acc'] = dev_em_acc, dev_ex_acc
-    
-        logger.info("Start evaluating dev_realistic dataset on testsuite database ......")
-        dev_dataset = Example.load_dataset('dev_realistic')
-        start_time = time.time()
-        dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, 'dev_realistic.eval'), batch_size=args.test_batch_size,
-            beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
-        logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
-        check_point['result']['devi_realistic_em_acc'], check_point['result']['dev_realistic_ex_acc'] = dev_em_acc, dev_ex_acc
+        dev_variants = ['dev_syn', 'dev_dk', 'dev_realistic']
+        for dev in dev_variants:
+            dev_dataset = Example.load_dataset(dev)
+            if len(dev_dataset) == 0: continue
+            start_time = time.time()
+            logger.info(f"Start evaluating {dev} dataset ......")
+            dev_em_acc, dev_ex_acc = decode(base_model, dev_dataset, os.path.join(exp_path, f'{dev}.eval'), batch_size=args.test_batch_size,
+                beam_size=args.beam_size, n_best=args.n_best, decode_order=args.decode_order, device=device)
+            logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Dev EM/EXT acc: {dev_em_acc:.4f}/{dev_ex_acc:.4f} ;")
+            check_point['result'][f'{dev}_em_acc'], check_point['result'][f'{dev}_ex_acc'] = dev_em_acc, dev_ex_acc
+    torch.save(check_point, open(os.path.join(exp_path, 'model.bin'), 'wb'))
 
     # logger.info('Start evaluating and printing ASTs on the dev dataset ......')
     # start_time = time.time()
@@ -196,7 +184,6 @@ if is_master:
     # count = record_heatmap(base_model, dev_dataset, os.path.join(exp_path, 'dev.heatmap'), decode_order=args.decode_order, device=device)
     # logger.info(f"EVALUATION costs {time.time() - start_time:.2f}s ; Record {count:d} heatmaps among {len(dev_dataset):d} samples ;")
 
-    torch.save(check_point, open(os.path.join(exp_path, 'model.bin'), 'wb'))
 
 if world_size > 1:
     dist.destroy_process_group()

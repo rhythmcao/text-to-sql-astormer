@@ -65,6 +65,9 @@ if __name__ == '__main__':
     for split in data_split:
         start_time = time.time()
         dataset_path = CONFIG_PATHS[args.dataset][split]
-        dataset = json.load(open(dataset_path, 'r'))
-        dataset = process_dataset_input(processor, dataset, tables, output_path=dataset_path, skip_large=(split=='train'))
-        print('%s dataset preprocessing costs %.4fs .' % (split, time.time() - start_time))
+        if os.path.exists(dataset_path):
+            dataset = json.load(open(dataset_path, 'r'))
+            dataset = process_dataset_input(processor, dataset, tables, output_path=dataset_path, skip_large=(split=='train'))
+            print('%s dataset preprocessing costs %.4fs .' % (split, time.time() - start_time))
+        else:
+            print('[WARNING]: Dataset file %s does not exist.' % (dataset_path))

@@ -780,4 +780,7 @@ if __name__ == '__main__':
     data_split = ['train', 'dev'] if args.data_split == 'all' else [args.data_split] if args.data_split != 'dev_ext' else ['dev_syn', 'dev_dk', 'dev_realistic']
     for split in data_split:
         input_path = CONFIG_PATHS[args.dataset][split]
-        parse_dataset(input_path, table_path)
+        if os.path.exists(input_path):
+            parse_dataset(input_path, table_path)
+        else:
+            print('[WARNING]: The dataset file does not exist: {}'.format(input_path))

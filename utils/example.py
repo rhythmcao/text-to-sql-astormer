@@ -1,5 +1,5 @@
 #coding=utf8
-import json, random, torch
+import json, random, torch, os
 from torch.utils.data import Dataset
 from itertools import chain
 from nsts.transition_system import TransitionSystem, CONFIG_PATHS
@@ -48,10 +48,9 @@ class Example():
         if dataset_path is None:
             assert choice in ['train', 'dev', 'dev_syn', 'dev_realistic', 'dev_dk']
             choice = 'train' if DEBUG else choice
-            dataset = json.load(open(CONFIG_PATHS[cls.dataset][choice], 'r'))
-        else:
-            choice = 'test'
-            dataset = json.load(open(dataset_path, 'r'))
+            dataset_path = CONFIG_PATHS[cls.dataset][choice]
+        else: choice = 'test'
+        dataset = json.load(open(dataset_path, 'r')) if os.path.exists(dataset_path) else []
 
         examples = []
         for idx, ex in enumerate(dataset):
