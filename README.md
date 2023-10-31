@@ -52,11 +52,12 @@ $ git clone https://huggingface.co/google/electra-small-discriminator
         - *.json # datasets or tables, variants of dev set such as dev_syn.json are also downloaded and placed here
     - sparc/
         - database/
-        - train.json
+        - *.json
     - cosql/
         - database/
         - sql_state_tracking/
             - *.json # train and dev datasets
+        - [other directories]/
         - tables.json
     - dusql/
         - *.json
