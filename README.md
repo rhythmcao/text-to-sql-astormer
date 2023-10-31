@@ -1,17 +1,15 @@
 # ASTormer: AST Structure-aware Transformer Decoder for Text-to-SQL
 
-This is the project containing source code for the paper [*ASTormer: An AST Structure-aware Transformer Decoder for Text-to-SQL*](https://to-be-realized). If you find it useful, please cite our work.
+This is the project containing source code for the paper [*ASTormer: An AST Structure-aware Transformer Decoder for Text-to-SQL*](https://arxiv.org/pdf/2310.18662.pdf). If you find it useful, please cite our work.
 
 ```bibtex
-@inproceedings{Scholak2021:PICARD,
-  author = {Torsten Scholak and Nathan Schucher and Dzmitry Bahdanau},
-  title = "ASTormer: An AST Structure-aware Transformer Decoder for Text-to-SQL",
-  booktitle = "Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing",
-  month = nov,
-  year = "2021",
-  publisher = "Association for Computational Linguistics",
-  url = "https://aclanthology.org/2021.emnlp-main.779",
-  pages = "9895--9901",
+@misc{cao2023astormer,
+      title={ASTormer: An AST Structure-aware Transformer Decoder for Text-to-SQL}, 
+      author={Ruisheng Cao and Hanchong Zhang and Hongshen Xu and Jieyu Li and Da Ma and Lu Chen and Kai Yu},
+      year={2023},
+      eprint={2310.18662},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
 }
 ```
 
@@ -51,7 +49,7 @@ $ git clone https://huggingface.co/google/electra-small-discriminator
     - spider/
         - database/ # all databases, one directory for each db_id
         - database-testsuite/ # test-stuite databases
-        - *.json # datasets or tables, dev set variants such as dev_syn.json are also downloaded and placed here
+        - *.json # datasets or tables, variants of dev set such as dev_syn.json are also downloaded and placed here
     - sparc/
         - database/
         - train.json
@@ -74,7 +72,7 @@ $ git clone https://huggingface.co/google/electra-small-discriminator
       - For a single condition, the parsed tuple is changed from `(not_op, op_id, val_unit, val1, val2)` into `(agg_id, op_id, val_unit, val1, val2)`. The `not_op` is removed and integrated into `op_id`, such as `not in` and `not like`
       - For FROM conditions where the value is a column id, the target `val1` must be a column list `(agg_id, col_id, isDistinct(bool))` to distinguish from integer values
       - For ORDER BY clause, the parsed tuple is changed from `('asc'/'desc', [val_unit1, val_unit2, ...])` to `('asc'/'desc', [(agg_id, val_unit1), （agg_id, val_unit2), ...])`
-  - It takes less than 10 minutes to preprocess each dataset (tokenization, schema linking and value linking)
+  - It takes less than 10 minutes to preprocess each dataset (tokenization, schema linking and value linking). We use the PLM tokenizer to tokenize questions and schema items; Schema linking is performed at the word level instead of BPE/Subword token-level.
 ```sh
 $ ./run/run_preprocessing.sh
 ```
@@ -83,7 +81,7 @@ $ ./run/run_preprocessing.sh
 
 To train ASTormer with `small`/`base`/`large` series pre-trained language models respectively:
 - `dataset` can be chosen from `['spider', 'sparc', 'cosql', 'dusql', 'chase']`
-- `plm` is the name of pre-trained language models under the directory `pretrained_models`. **Please conform to the choice in preprocessing script (`run/run_preprocessing.sh`).**
+- `plm` is the name of pre-trained language models under the directory `pretrained_models`. **Please conform to the choice of PLMs in preprocessing script (`run/run_preprocessing.sh`).**
 ```sh
 # swv means utilizing static word embeddings, extracted from small-series models such as electra-small-discriminator
 $ ./run/run_train_and_eval_swv.sh [dataset] [plm]
