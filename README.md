@@ -89,12 +89,13 @@ $ ./run/run_train_and_eval_swv.sh [dataset] [plm]
         
 # DDP is not needed, a single 2080Ti GPU is enough
 $ ./run/run_train_and_eval_small.sh [dataset] [plm]
-        
-# if DDP used, please specify the three environment variables, e.g., one machine two GPUs
-$ GPU_PER_NODE=2 NUM_NODES=1 NODE_RANK=0 ./run/run_train_and_eval_base.sh [dataset] [plm]
 
-# if DDP used, please specify the three environment variables, e.g., one machine four GPUs
-$ GPU_PER_NODE=4 NUM_NODES=1 NODE_RANK=0 ./run/run_train_and_eval_large.sh [dataset] [plm]
+# if DDP used, please specify the environment variables below, e.g., one machine with two GPUs
+$ GPU_PER_NODE=2 NUM_NODES=1 NODE_RANK=0 MASTER_ADDR="127.0.0.1" MASTER_PORT=23456 ./run/run_train_and_eval_base.sh [dataset] [plm]
+
+# if DDP used, please specify the environment variables below, e.g., two machines each with two GPUs
+$ GPU_PER_NODE=2 NUM_NODES=2 NODE_RANK=0 MASTER_ADDR=[node0_ip] MASTER_PORT=23456 ./run/run_train_and_eval_large.sh [dataset] [plm]
+$ GPU_PER_NODE=2 NUM_NODES=2 NODE_RANK=1 MASTER_ADDR=[node0_ip] MASTER_PORT=23456 ./run/run_train_and_eval_large.sh [dataset] [plm]
 ```
 
 ## Inference and Submission
